@@ -4,7 +4,9 @@ Vinted 商品图片抓取 — 纯业务逻辑模块
 所有 GUI 依赖已移除，通过回调函数与任意 GUI 框架对接。
 """
 import os
+import sys
 import io
+import shutil
 import random
 import string
 import hashlib
@@ -441,18 +443,22 @@ def process_image(image_path, skip_gps=False):
 
 def _get_chromedriver_path():
     """获取 chromedriver.exe 路径（支持 PyInstaller 打包）"""
-    import sys as _sys, shutil as _shutil
     # PyInstaller 打包后：sys._MEIPASS 是临时解压目录
-    frozen_dir = getattr(_sys, '_MEIPASS', None)
+    frozen_dir = getattr(sys, '_MEIPASS', None)
     if frozen_dir:
         bundled = os.path.join(frozen_dir, 'chromedriver.exe')
-        # 复制到 exe 同目录（持久化，避免每次从临时目录加载）
-        exe_dir = os.path.dirname(_sys.executable)
+        exe_dir = os.path.dirname(sys.executable)
         target = os.path.join(exe_dir, 'chromedriver.exe')
         if not os.path.exists(target) and os.path.exists(bundled):
-            _shutil.copy2(bundled, target)
+            try:
+                shutil.copy2(bundled, target)
+            except Exception as e:
+                write_log(f"chromedriver 提取失败: {e}", "warning")
         if os.path.exists(target):
             return target
+        # fallback: try bundled directly
+        if os.path.exists(bundled):
+            return bundled
     # 开发模式：脚本同目录
     script_dir = os.path.dirname(os.path.abspath(__file__))
     local = os.path.join(script_dir, 'chromedriver.exe')

@@ -1,5 +1,5 @@
 {
-  "version": "1.2.1",
-  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v1.2.1/VintedTool.exe",
-  "changelog": "修复移除日志面板后无法看到抓取进度的问题，状态栏实时显示运行信息"
+  "version": "1.2.2",
+  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v1.2.2/VintedTool.exe",
+  "changelog": "修复 PyInstaller 打包后 chromedriver 提取失败的问题；增加 fallback 机制"
 }
