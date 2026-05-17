@@ -788,8 +788,9 @@ class VintedScraperGUI(QMainWindow):
 
     # ---- 日志 ----
     def _add_log(self, content, level="info"):
-        if level in ("error", "warning"):
-            self.status_label.setText(f"状态：{content}")
+        # 精简显示：截取前 60 字符更新到状态栏
+        short = content[:60] + ("..." if len(content) > 60 else "")
+        self.status_label.setText(short)
 
     # ---- 本地防重 ----
     def _show_local_menu(self):
