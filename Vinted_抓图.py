@@ -126,6 +126,7 @@ CURRENT_TASK = 0
 SUCCESS_COUNT = 0
 FAIL_COUNT = 0
 FAILED_URLS = []
+FAIL_REASONS = {}
 COMPRESS_ENABLED = False
 WATERMARK_ENABLED = False
 LOSSLESS_ENABLED = False  # 无损画质模式：quality=100 + 4:4:4
@@ -648,6 +649,7 @@ def scrape_vinted_by_browser(url, save_folder, debug_mode, driver=None, wait_tim
         if not item_photo_container:
             write_log("❌ 3次重试后仍无法加载商品页面", "error")
             FAILED_URLS.append(url)
+            FAIL_REASONS[url] = "页面加载失败（3次重试）"
             if own_driver:
                 driver.quit()
             return False
@@ -734,6 +736,7 @@ def scrape_vinted_by_browser(url, save_folder, debug_mode, driver=None, wait_tim
         if not img_urls:
             write_log("❌ 未提取到商品高清主图", "error")
             FAILED_URLS.append(url)
+            FAIL_REASONS[url] = "未提取到商品图片"
             if own_driver:
                 driver.quit()
             return False
@@ -763,6 +766,7 @@ def scrape_vinted_by_browser(url, save_folder, debug_mode, driver=None, wait_tim
     except Exception as e:
         write_log(f"❌ 商品抓取失败 | {url} | {e}", "error")
         FAILED_URLS.append(url)
+        FAIL_REASONS[url] = str(e)[:80]
         if driver and own_driver:
             driver.quit()
         return False
@@ -785,6 +789,7 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
     SUCCESS_COUNT = 0
     FAIL_COUNT = 0
     FAILED_URLS = []
+    FAIL_REASONS = {}
 
     save_root = CUSTOM_SAVE_ROOT.strip() or DEFAULT_SAVE_ROOT
     if not os.path.exists(save_root):

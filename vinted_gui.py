@@ -19,6 +19,9 @@ import Vinted_抓图 as backend
 import license_system as license_mgr
 import update_checker
 
+# 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
+RELEASE_MODE = False
+
 
 # ====================== 拖拽文本框 ======================
 class DropPlainTextEdit(QPlainTextEdit):
@@ -294,11 +297,15 @@ class VintedScraperGUI(QMainWindow):
         self._geo_setting_up = False
 
         self.setWindowTitle(f"Vinted 商品图片抓取工具 v{update_checker.CURRENT_VERSION}")
-        self.setMinimumSize(440, 600)
-        self.resize(500, 650)
+        if RELEASE_MODE:
+            self.setMinimumSize(440, 400)
+            self.resize(500, 440)
+        else:
+            self.setMinimumSize(440, 600)
+            self.resize(500, 650)
 
         screen = QApplication.primaryScreen().geometry()
-        self.move((screen.width() - 500) // 2, (screen.height() - 650) // 2)
+        self.move((screen.width() - 500) // 2, (screen.height() - self.height()) // 2)
 
         self._load_config()
         self._build_ui()
@@ -346,6 +353,13 @@ class VintedScraperGUI(QMainWindow):
             except:
                 pass
 
+        # 恢复上次的链接
+        saved_urls = cfg.get("last_urls", "")
+        if saved_urls:
+            self._restore_urls = saved_urls
+        else:
+            self._restore_urls = ""
+
         self._path_save_timer = QTimer(self)
         self._path_save_timer.setSingleShot(True)
         self._path_save_timer.setInterval(500)
@@ -378,7 +392,8 @@ class VintedScraperGUI(QMainWindow):
         self._build_url_section(root)
         self._build_settings_section(root)
         self._build_task_section(root)
-        self._build_log_section(root)
+        if not RELEASE_MODE:
+            self._build_log_section(root)
 
     # ---- 模块 1：商品链接管理 ----
     def _build_url_section(self, parent):
@@ -585,6 +600,8 @@ class VintedScraperGUI(QMainWindow):
         self.chk_lossless.setChecked(self._lossless)
         self.chk_advanced_anti_detect.setChecked(self._advanced_anti_detect)
         self._geo_setting_up = False
+        if getattr(self, '_restore_urls', ''):
+            self.txt_urls.setPlainText(self._restore_urls)
         self._update_url_count()
 
     # ---- 信号 ----
@@ -609,7 +626,8 @@ class VintedScraperGUI(QMainWindow):
         self.btn_start.clicked.connect(self._start_crawl)
         self.btn_stop.clicked.connect(self._stop_crawl)
         self.btn_open_dir.clicked.connect(self._open_save_dir)
-        self.btn_clear_log.clicked.connect(self._clear_log)
+        if not RELEASE_MODE:
+            self.btn_clear_log.clicked.connect(self._clear_log)
         self.btn_local.clicked.connect(self._show_local_menu)
 
         # 窗口级拖拽：图片文件拖入触发本地防重
@@ -741,6 +759,11 @@ class VintedScraperGUI(QMainWindow):
         text = self.txt_urls.toPlainText().strip()
         if not text:
             return QMessageBox.warning(self, "警告", "请输入至少一个商品链接！")
+        # 校验链接格式
+        urls = [u.strip() for u in text.split("\n") if u.strip()]
+        valid = [u for u in urls if "vinted." in u]
+        if not valid:
+            return QMessageBox.warning(self, "警告", "未检测到有效的 Vinted 商品链接！\n\n链接应包含 vinted.fr 或 vinted.com")
         save_path = self.entry_path.text().strip() or backend.DEFAULT_SAVE_ROOT
         if not os.path.exists(save_path):
             if QMessageBox.Yes != QMessageBox.question(self, "提示", f"目录不存在，是否创建？\n{save_path}"):
@@ -784,7 +807,15 @@ class VintedScraperGUI(QMainWindow):
         msg.setStandardButtons(QMessageBox.Ok)
         msg.setDefaultButton(QMessageBox.Ok)
         msg.setText(f"任务执行完成！")
-        msg.setInformativeText(f"总商品数：{total}    成功：{success}    失败：{fail}")
+        info = f"总商品数：{total}    成功：{success}    失败：{fail}"
+        if fail > 0 and backend.FAIL_REASONS:
+            reasons = []
+            for url in backend.FAILED_URLS[-3:]:  # 最多显示3个
+                r = backend.FAIL_REASONS.get(url, "未知错误")
+                short_url = url.split("?")[0].split("/")[-1] if "/" in url else url[-20:]
+                reasons.append(f"  {short_url}: {r}")
+            info += "\n\n失败原因：\n" + "\n".join(reasons)
+        msg.setInformativeText(info)
         btn_open = msg.addButton("打开图片目录", QMessageBox.ActionRole)
         btn_clear = msg.addButton("重新开始", QMessageBox.ActionRole)
         btn_export = None
@@ -819,15 +850,22 @@ class VintedScraperGUI(QMainWindow):
 
     # ---- 日志 ----
     def _add_log(self, content, level="info"):
+        if RELEASE_MODE:
+            short = content[:60] + ("..." if len(content) > 60 else "")
+            self.status_label.setText(short)
+            return
         colors = {"success": "#10b981", "warning": "#f59e0b", "error": "#ef4444", "info": "#374151"}
         c = colors.get(level, "#374151")
         self.log_view.appendHtml(f'<span style="color:{c};white-space:pre;">{content.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")}</span>')
         self.log_view.verticalScrollBar().setValue(self.log_view.verticalScrollBar().maximum())
 
     def _clear_log(self):
-        self.log_view.clear()
+        if not RELEASE_MODE:
+            self.log_view.clear()
 
     def _show_log_menu(self, pos):
+        if RELEASE_MODE:
+            return
         m = QMenu(self)
         a1 = m.addAction("复制选中内容")
         a2 = m.addAction("复制全部日志")
@@ -985,6 +1023,7 @@ class VintedScraperGUI(QMainWindow):
         r = self.geometry()
         cfg = backend.load_config()
         cfg["window_geometry"] = f"{r.width()}x{r.height()}+{r.x()}+{r.y()}"
+        cfg["last_urls"] = self.txt_urls.toPlainText()
         backend.save_config(cfg)
 
 
