@@ -1,5 +1,5 @@
 {
-  "version": "1.1.3",
-  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v1.1.3/VintedTool.exe",
-  "changelog": "完善激活窗口底部联系文案"
+  "version": "1.2.0",
+  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v1.2.0/VintedTool.exe",
+  "changelog": "精简界面：移除调试模式、运行日志；增加授权到期显示；优化窗口布局"
 }

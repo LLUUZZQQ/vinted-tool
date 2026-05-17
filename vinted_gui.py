@@ -14,8 +14,6 @@ from PySide6.QtWidgets import (
     QMessageBox, QDialog, QFrame,
 )
 from PySide6.QtCore import Qt, Signal, QThread, QTimer, QMimeData
-from PySide6.QtGui import QFont
-
 import Vinted_抓图 as backend
 import license_system as license_mgr
 import update_checker
@@ -295,8 +293,8 @@ class VintedScraperGUI(QMainWindow):
         self._geo_setting_up = False
 
         self.setWindowTitle(f"Vinted 商品图片抓取工具 v{update_checker.CURRENT_VERSION}")
-        self.setMinimumSize(440, 480)
-        self.resize(500, 540)
+        self.setMinimumSize(440, 520)
+        self.resize(500, 580)
 
         screen = QApplication.primaryScreen().geometry()
         self.move((screen.width() - 500) // 2, (screen.height() - 540) // 2)
@@ -306,6 +304,13 @@ class VintedScraperGUI(QMainWindow):
         self._apply_config_to_ui()
         self._load_stylesheet()
         self._connect_signals()
+
+        # 显示授权到期信息
+        _, _, remaining = license_mgr.check_license()
+        if remaining is not None:
+            self.license_label.setText(f"授权剩余 {remaining} 天")
+        else:
+            self.license_label.setText("永久授权")
 
         # 启动后 3 秒静默检查更新
         QTimer.singleShot(3000, self._auto_check_update)
@@ -317,7 +322,6 @@ class VintedScraperGUI(QMainWindow):
         self._country = cfg.get("country", "法国")
         self._city = cfg.get("city", "全国随机")
         self._mode = cfg.get("mode", "随机位置")
-        self._debug = cfg.get("debug", "True") == "True"
         self._compress = cfg.get("compress_enabled", "False") == "True"
         self._watermark = cfg.get("watermark_enabled", "False") == "True"
         self._lossless = cfg.get("lossless_enabled", "False") == "True"
@@ -350,7 +354,6 @@ class VintedScraperGUI(QMainWindow):
         backend.save_config({
             "save_path": self._save_path,
             "country": self._country, "city": self._city, "mode": self._mode,
-            "debug": str(self._debug),
             "compress_enabled": str(self._compress),
             "watermark_enabled": str(self._watermark),
             "lossless_enabled": str(self._lossless),
@@ -374,7 +377,6 @@ class VintedScraperGUI(QMainWindow):
         self._build_url_section(root)
         self._build_settings_section(root)
         self._build_task_section(root)
-        self._build_log_section(root)
 
     # ---- 模块 1：商品链接管理 ----
     def _build_url_section(self, parent):
@@ -460,9 +462,6 @@ class VintedScraperGUI(QMainWindow):
         self.chk_watermark = QCheckBox("隐形水印")
         self.chk_watermark.setToolTip("添加隐形防重水印")
         r3.addWidget(self.chk_watermark)
-        self.chk_debug = QCheckBox("调试模式")
-        self.chk_debug.setToolTip("显示浏览器窗口")
-        r3.addWidget(self.chk_debug)
         r3.addStretch()
         self.btn_reset = QPushButton("恢复默认")
         self.btn_reset.setObjectName("btnSecondary")
@@ -496,6 +495,10 @@ class VintedScraperGUI(QMainWindow):
         self.status_label.setObjectName("statusLabel")
         bar.addWidget(self.status_label)
         bar.addStretch()
+        self.license_label = QLabel("")
+        self.license_label.setObjectName("licenseLabel")
+        bar.addWidget(self.license_label)
+        bar.addSpacing(12)
         self.stat_label = QLabel("成功：0 | 失败：0")
         self.stat_label.setObjectName("statLabel")
         bar.addWidget(self.stat_label)
@@ -537,37 +540,6 @@ class VintedScraperGUI(QMainWindow):
         parent.addWidget(g)
 
     # ---- 模块 4：运行日志 ----
-    def _build_log_section(self, parent):
-        g = QGroupBox("运行日志")
-        lo = QVBoxLayout(g)
-        lo.setContentsMargins(0, 8, 0, 2)
-        lo.setSpacing(4)
-
-        # 工具栏
-        tb = QHBoxLayout()
-        tb.addStretch()
-        self.btn_clear_log = QPushButton("清空日志")
-        self.btn_clear_log.setObjectName("btnSecondary")
-        tb.addWidget(self.btn_clear_log)
-        lo.addLayout(tb)
-
-        self.log_view = QPlainTextEdit()
-        self.log_view.setReadOnly(True)
-        self.log_view.setMaximumBlockCount(3000)
-        self.log_view.setFont(QFont("Consolas", 10))
-        self.log_view.setStyleSheet("""
-            QPlainTextEdit {
-                background-color: #fafafa; border: 1px solid #e5e7eb;
-                border-radius: 6px; padding: 6px 10px; color: #374151;
-                font-family: "Consolas", "Courier New", monospace; font-size: 12px;
-            }
-        """)
-        self.log_view.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.log_view.customContextMenuRequested.connect(self._show_log_menu)
-        lo.addWidget(self.log_view)
-
-        parent.addWidget(g, 1)
-
     # ---- 配置 → UI ----
     def _apply_config_to_ui(self):
         self._geo_setting_up = True
@@ -579,7 +551,6 @@ class VintedScraperGUI(QMainWindow):
         self._update_mode_state()
         self.chk_compress.setChecked(self._compress)
         self.chk_watermark.setChecked(self._watermark)
-        self.chk_debug.setChecked(self._debug)
         self.chk_lossless.setChecked(self._lossless)
         self.chk_advanced_anti_detect.setChecked(self._advanced_anti_detect)
         self._geo_setting_up = False
@@ -601,14 +572,12 @@ class VintedScraperGUI(QMainWindow):
         self.combo_mode.currentTextChanged.connect(self._on_mode_changed)
         self.chk_compress.toggled.connect(self._on_compress_toggled)
         self.chk_watermark.toggled.connect(self._on_watermark_toggled)
-        self.chk_debug.toggled.connect(self._on_debug_toggled)
         self.chk_lossless.toggled.connect(self._on_lossless_toggled)
         self.chk_advanced_anti_detect.toggled.connect(self._on_advanced_anti_detect_toggled)
         self.btn_reset.clicked.connect(self._reset_defaults)
         self.btn_start.clicked.connect(self._start_crawl)
         self.btn_stop.clicked.connect(self._stop_crawl)
         self.btn_open_dir.clicked.connect(self._open_save_dir)
-        self.btn_clear_log.clicked.connect(self._clear_log)
         self.btn_local.clicked.connect(self._show_local_menu)
         self.btn_update.clicked.connect(self._check_for_updates)
 
@@ -718,10 +687,6 @@ class VintedScraperGUI(QMainWindow):
         backend.WATERMARK_ENABLED = v
         self._save_config()
 
-    def _on_debug_toggled(self, v):
-        self._debug = v
-        self._save_config()
-
     def _on_lossless_toggled(self, v):
         self._lossless = v
         backend.LOSSLESS_ENABLED = v
@@ -757,7 +722,7 @@ class VintedScraperGUI(QMainWindow):
         self._set_ui_running(True)
         self.status_label.setText("状态：正在启动任务")
 
-        self._worker = CrawlWorker(text, self._debug)
+        self._worker = CrawlWorker(text, False)
         self._worker.log_signal.connect(self._add_log)
         self._worker.status_signal.connect(lambda s: self.status_label.setText(f"状态：{s}"))
         self._worker.progress_signal.connect(self._on_progress)
@@ -811,7 +776,6 @@ class VintedScraperGUI(QMainWindow):
         self.combo_country.setEnabled(not running)
         self.combo_city.setEnabled(not running)
         self.combo_mode.setEnabled(not running and self.combo_city.currentText() != "全国随机")
-        self.chk_debug.setEnabled(not running)
         self.chk_compress.setEnabled(not running)
         self.chk_watermark.setEnabled(not running)
         self.chk_lossless.setEnabled(not running)
@@ -824,13 +788,8 @@ class VintedScraperGUI(QMainWindow):
 
     # ---- 日志 ----
     def _add_log(self, content, level="info"):
-        colors = {"success": "#10b981", "warning": "#f59e0b", "error": "#ef4444", "info": "#374151"}
-        c = colors.get(level, "#374151")
-        self.log_view.appendHtml(f'<span style="color:{c};white-space:pre;">{content.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")}</span>')
-        self.log_view.verticalScrollBar().setValue(self.log_view.verticalScrollBar().maximum())
-
-    def _clear_log(self):
-        self.log_view.clear()
+        if level in ("error", "warning"):
+            self.status_label.setText(f"状态：{content}")
 
     # ---- 本地防重 ----
     def _show_local_menu(self):
@@ -943,20 +902,6 @@ class VintedScraperGUI(QMainWindow):
         if paths:
             event.acceptProposedAction()
             self._run_local_worker(paths)
-
-    def _show_log_menu(self, pos):
-        m = QMenu(self)
-        a1 = m.addAction("复制选中内容")
-        a2 = m.addAction("复制全部日志")
-        m.addSeparator()
-        a3 = m.addAction("清空日志")
-        action = m.exec(self.log_view.mapToGlobal(pos))
-        if action == a1:
-            self.log_view.copy()
-        elif action == a2:
-            QApplication.clipboard().setText(self.log_view.toPlainText())
-        elif action == a3:
-            self._clear_log()
 
     # ---- 目录 ----
     def _open_save_dir(self):
