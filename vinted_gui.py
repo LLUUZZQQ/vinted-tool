@@ -100,49 +100,59 @@ class ActivationDialog(QDialog):
         super().__init__(parent)
         self._activated = False
         self.setWindowTitle("Vinted 抓图工具 — 软件激活")
-        self.setFixedSize(420, 290)
+        self.setFixedSize(420, 300)
         self.setWindowFlags(Qt.Dialog | Qt.MSWindowsFixedSizeDialogHint)
+        # 不加载 QSS（避免全局样式冲突），完全用内联样式
+        self.setStyleSheet("QDialog { background-color: #ffffff; }")
         self._build_ui()
-        self._load_style()
 
     def _build_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(24, 20, 24, 20)
+        root.setContentsMargins(28, 24, 28, 20)
         root.setSpacing(12)
 
         title = QLabel("Vinted 商品图片抓取工具")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 15px; font-weight: bold; color: #111111;")
+        title.setStyleSheet("font-size: 15px; font-weight: bold; color: #111111; background: transparent;")
         root.addWidget(title)
 
         sub = QLabel("软件激活")
         sub.setAlignment(Qt.AlignCenter)
-        sub.setStyleSheet("font-size: 12px; color: #6b7280;")
+        sub.setStyleSheet("font-size: 12px; color: #6b7280; background: transparent;")
         root.addWidget(sub)
 
-        root.addSpacing(4)
+        root.addSpacing(6)
 
-        # 机器码
+        # 设备标识
         hwid_row = QHBoxLayout()
-        hwid_row.addWidget(QLabel("机器码："))
+        hwid_label = QLabel("设备标识：")
+        hwid_label.setStyleSheet("font-size: 13px; color: #374151; background: transparent;")
+        hwid_row.addWidget(hwid_label)
         self.hwid_display = QLineEdit()
         self.hwid_display.setReadOnly(True)
         self.hwid_display.setText(license_mgr.get_hwid())
         self.hwid_display.setStyleSheet("""
             QLineEdit { font-family: Consolas, monospace; font-size: 14px;
-            background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px;
+            background: #f9fafb; border: 1px solid #d1d5db; border-radius: 6px;
             padding: 6px 10px; color: #111111; }
         """)
         hwid_row.addWidget(self.hwid_display, 1)
         btn_copy = QPushButton("复制")
-        btn_copy.setObjectName("btnSecondary")
+        btn_copy.setFixedWidth(48)
+        btn_copy.setStyleSheet("""
+            QPushButton { font-size: 12px; background: #f3f4f6; border: 1px solid #d1d5db;
+            border-radius: 6px; padding: 6px 10px; color: #374151; }
+            QPushButton:hover { background: #e5e7eb; }
+        """)
         btn_copy.clicked.connect(self._copy_hwid)
         hwid_row.addWidget(btn_copy)
         root.addLayout(hwid_row)
 
         # 激活码
         code_row = QHBoxLayout()
-        code_row.addWidget(QLabel("激活码："))
+        code_label = QLabel("激活码：")
+        code_label.setStyleSheet("font-size: 13px; color: #374151; background: transparent;")
+        code_row.addWidget(code_label)
         self.code_input = QLineEdit()
         self.code_input.setPlaceholderText("输入或粘贴激活码")
         self.code_input.setStyleSheet("""
@@ -157,7 +167,7 @@ class ActivationDialog(QDialog):
         # 状态提示
         self.msg_label = QLabel("")
         self.msg_label.setAlignment(Qt.AlignCenter)
-        self.msg_label.setStyleSheet("font-size: 12px; min-height: 18px;")
+        self.msg_label.setStyleSheet("font-size: 12px; min-height: 18px; background: transparent;")
         root.addWidget(self.msg_label)
 
         # 按钮
@@ -165,11 +175,20 @@ class ActivationDialog(QDialog):
         btn_row.setSpacing(12)
         btn_row.addStretch()
         self.btn_activate = QPushButton("激活")
-        self.btn_activate.setObjectName("btnStart")
+        self.btn_activate.setStyleSheet("""
+            QPushButton { font-size: 13px; font-weight: 600; background: #111111;
+            border: none; border-radius: 6px; padding: 8px 24px; color: #ffffff; }
+            QPushButton:hover { background: #333333; }
+            QPushButton:disabled { background: #9ca3af; }
+        """)
         self.btn_activate.clicked.connect(self._do_activate)
         btn_row.addWidget(self.btn_activate)
         self.btn_exit = QPushButton("退出")
-        self.btn_exit.setObjectName("btnStop")
+        self.btn_exit.setStyleSheet("""
+            QPushButton { font-size: 13px; background: #ffffff; border: 1px solid #d1d5db;
+            border-radius: 6px; padding: 8px 24px; color: #374151; }
+            QPushButton:hover { background: #f3f4f6; }
+        """)
         self.btn_exit.clicked.connect(self.reject)
         btn_row.addWidget(self.btn_exit)
         btn_row.addStretch()
@@ -177,16 +196,10 @@ class ActivationDialog(QDialog):
 
         root.addStretch()
 
-        contact = QLabel("需要激活码？请联系：LuzQ@example.com")
+        contact = QLabel("需要激活码？请联系微信：UU_L777777")
         contact.setAlignment(Qt.AlignCenter)
-        contact.setStyleSheet("font-size: 11px; color: #9ca3af;")
+        contact.setStyleSheet("font-size: 11px; color: #9ca3af; background: transparent;")
         root.addWidget(contact)
-
-    def _load_style(self):
-        p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vinted_style.qss")
-        if os.path.exists(p):
-            with open(p, "r", encoding="utf-8") as f:
-                self.setStyleSheet(f.read())
 
     def _copy_hwid(self):
         QApplication.clipboard().setText(self.hwid_display.text())

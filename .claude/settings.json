@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m unittest -v)",
+      "Bash(python -m unittest -v test_popup_priority_unit.py)"
+    ]
+  }
+}
