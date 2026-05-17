@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
-  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v1.1.0/VintedTool.exe",
-  "changelog": "全新设计激活窗口：卡片式布局、分步引导、更专业的外观"
+  "version": "1.1.1",
+  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v1.1.1/VintedTool.exe",
+  "changelog": "修复激活窗口样式冲突：卡片选择器精确匹配，分隔线正常显示"
 }

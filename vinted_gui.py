@@ -97,12 +97,13 @@ class CrawlWorker(QThread):
 # ====================== 软件激活对话框 ======================
 class ActivationDialog(QDialog):
     STYLE_CARD = """
-        QFrame { background: #fafbfc; border: 1px solid #e8eaed;
+        QFrame[objectName="card"] { background: #fafbfc; border: 1px solid #e8eaed;
         border-radius: 10px; padding: 14px; }
     """
-    STYLE_STEP = "font-size: 12px; font-weight: bold; color: #111111; background: #e8eaed; border-radius: 10px; padding: 2px 7px;"
-    STYLE_LABEL = "font-size: 13px; font-weight: 500; color: #374151; background: transparent;"
+    STYLE_LABEL = "font-size: 13px; font-weight: 600; color: #374151; background: transparent;"
     STYLE_HINT = "font-size: 11px; color: #9ca3af; background: transparent; padding-left: 2px;"
+    STYLE_STEP = "font-size: 12px; font-weight: bold; color: #ffffff; background: #111111; border-radius: 8px; padding: 1px 6px;"
+    STYLE_SEPARATOR = "QFrame { border: none; border-top: 1px solid #e8eaed; background: transparent; max-height: 1px; }"
     STYLE_INPUT_RO = """
         QLineEdit { font-family: Consolas, monospace; font-size: 14px; letter-spacing: 1px;
         background: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px;
@@ -147,6 +148,7 @@ class ActivationDialog(QDialog):
 
     def _make_card(self):
         card = QFrame()
+        card.setObjectName("card")
         card.setStyleSheet(self.STYLE_CARD)
         return card
 
@@ -169,9 +171,18 @@ class ActivationDialog(QDialog):
         root.addSpacing(18)
 
         # ---- 步骤 1：设备标识 ----
-        s1_label = QLabel("  1   设备标识")
-        s1_label.setStyleSheet(self.STYLE_LABEL)
-        root.addWidget(s1_label)
+        s1_row = QHBoxLayout()
+        s1_row.setSpacing(8)
+        s1_step = QLabel("1")
+        s1_step.setAlignment(Qt.AlignCenter)
+        s1_step.setFixedSize(18, 18)
+        s1_step.setStyleSheet(self.STYLE_STEP)
+        s1_row.addWidget(s1_step)
+        s1_text = QLabel("设备标识")
+        s1_text.setStyleSheet(self.STYLE_LABEL)
+        s1_row.addWidget(s1_text)
+        s1_row.addStretch()
+        root.addLayout(s1_row)
 
         root.addSpacing(6)
 
@@ -197,9 +208,18 @@ class ActivationDialog(QDialog):
         root.addSpacing(14)
 
         # ---- 步骤 2：激活码 ----
-        s2_label = QLabel("  2   激活码")
-        s2_label.setStyleSheet(self.STYLE_LABEL)
-        root.addWidget(s2_label)
+        s2_row = QHBoxLayout()
+        s2_row.setSpacing(8)
+        s2_step = QLabel("2")
+        s2_step.setAlignment(Qt.AlignCenter)
+        s2_step.setFixedSize(18, 18)
+        s2_step.setStyleSheet(self.STYLE_STEP)
+        s2_row.addWidget(s2_step)
+        s2_text = QLabel("激活码")
+        s2_text.setStyleSheet(self.STYLE_LABEL)
+        s2_row.addWidget(s2_text)
+        s2_row.addStretch()
+        root.addLayout(s2_row)
 
         root.addSpacing(6)
 
@@ -247,7 +267,7 @@ class ActivationDialog(QDialog):
         # ---- 联系方式 ----
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
-        line.setStyleSheet("border: none; border-top: 1px solid #f0f0f0;")
+        line.setStyleSheet(self.STYLE_SEPARATOR)
         root.addWidget(line)
 
         root.addSpacing(10)
