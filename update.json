@@ -1,5 +1,5 @@
 {
-  "version": "1.2.3",
-  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v1.2.3/VintedTool.exe",
-  "changelog": "修复 PyInstaller 遗漏 selenium.webdriver.chrome.options 模块导致抓取失败"
+  "version": "1.2.4",
+  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v1.2.4/VintedTool.exe",
+  "changelog": "使用 collect_submodules 自动收集所有 Selenium 子模块，彻底解决模块缺失问题"
 }

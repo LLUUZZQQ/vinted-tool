@@ -2,9 +2,13 @@
 """
 Vinted 抓图工具 — PyInstaller 打包脚本
 用法：pyinstaller vinted_build.spec
-输出：dist/Vinted_抓图工具.exe
+输出：dist/VintedTool.exe
 """
+from PyInstaller.utils.hooks import collect_submodules
+
 block_cipher = None
+
+selenium_hidden = collect_submodules('selenium')
 
 a = Analysis(
     ['vinted_gui.py'],
@@ -22,15 +26,10 @@ a = Analysis(
         'piexif', 'numpy',
         'PIL', 'PIL.Image', 'PIL.ImageEnhance', 'PIL.ImageFilter',
         'PIL.ImageDraw', 'PIL.ImageFont',
-        'selenium', 'selenium.webdriver.chrome.options',
-        'selenium.webdriver.chrome.service',
-        'selenium.webdriver.common.by', 'selenium.webdriver.support.ui',
-        'selenium.webdriver.support.expected_conditions',
-        'selenium.common.exceptions', 'selenium.webdriver',
         'win32api', 'win32con', 'win32com', 'win32com.client',
         'requests', 'urllib3',
         'configparser', 'shutil', 'hashlib', 'string', 'threading',
-    ],
+    ] + selenium_hidden,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
