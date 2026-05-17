@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QMessageBox, QDialog, QFrame,
 )
 from PySide6.QtCore import Qt, Signal, QThread, QTimer, QMimeData
+from PySide6.QtGui import QFont
 import Vinted_抓图 as backend
 import license_system as license_mgr
 import update_checker
@@ -293,8 +294,8 @@ class VintedScraperGUI(QMainWindow):
         self._geo_setting_up = False
 
         self.setWindowTitle(f"Vinted 商品图片抓取工具 v{update_checker.CURRENT_VERSION}")
-        self.setMinimumSize(440, 520)
-        self.resize(500, 580)
+        self.setMinimumSize(440, 600)
+        self.resize(500, 650)
 
         screen = QApplication.primaryScreen().geometry()
         self.move((screen.width() - 500) // 2, (screen.height() - 540) // 2)
@@ -377,6 +378,7 @@ class VintedScraperGUI(QMainWindow):
         self._build_url_section(root)
         self._build_settings_section(root)
         self._build_task_section(root)
+        self._build_log_section(root)
 
     # ---- 模块 1：商品链接管理 ----
     def _build_url_section(self, parent):
@@ -540,6 +542,36 @@ class VintedScraperGUI(QMainWindow):
         parent.addWidget(g)
 
     # ---- 模块 4：运行日志 ----
+    def _build_log_section(self, parent):
+        g = QGroupBox("运行日志")
+        lo = QVBoxLayout(g)
+        lo.setContentsMargins(0, 8, 0, 2)
+        lo.setSpacing(4)
+
+        tb = QHBoxLayout()
+        tb.addStretch()
+        self.btn_clear_log = QPushButton("清空日志")
+        self.btn_clear_log.setObjectName("btnSecondary")
+        tb.addWidget(self.btn_clear_log)
+        lo.addLayout(tb)
+
+        self.log_view = QPlainTextEdit()
+        self.log_view.setReadOnly(True)
+        self.log_view.setMaximumBlockCount(3000)
+        self.log_view.setFont(QFont("Consolas", 10))
+        self.log_view.setStyleSheet("""
+            QPlainTextEdit {
+                background-color: #fafafa; border: 1px solid #e5e7eb;
+                border-radius: 6px; padding: 6px 10px; color: #374151;
+                font-family: "Consolas", "Courier New", monospace; font-size: 12px;
+            }
+        """)
+        self.log_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.log_view.customContextMenuRequested.connect(self._show_log_menu)
+        lo.addWidget(self.log_view)
+
+        parent.addWidget(g, 1)
+
     # ---- 配置 → UI ----
     def _apply_config_to_ui(self):
         self._geo_setting_up = True
@@ -578,6 +610,7 @@ class VintedScraperGUI(QMainWindow):
         self.btn_start.clicked.connect(self._start_crawl)
         self.btn_stop.clicked.connect(self._stop_crawl)
         self.btn_open_dir.clicked.connect(self._open_save_dir)
+        self.btn_clear_log.clicked.connect(self._clear_log)
         self.btn_local.clicked.connect(self._show_local_menu)
         self.btn_update.clicked.connect(self._check_for_updates)
 
@@ -788,9 +821,27 @@ class VintedScraperGUI(QMainWindow):
 
     # ---- 日志 ----
     def _add_log(self, content, level="info"):
-        # 精简显示：截取前 60 字符更新到状态栏
-        short = content[:60] + ("..." if len(content) > 60 else "")
-        self.status_label.setText(short)
+        colors = {"success": "#10b981", "warning": "#f59e0b", "error": "#ef4444", "info": "#374151"}
+        c = colors.get(level, "#374151")
+        self.log_view.appendHtml(f'<span style="color:{c};white-space:pre;">{content.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")}</span>')
+        self.log_view.verticalScrollBar().setValue(self.log_view.verticalScrollBar().maximum())
+
+    def _clear_log(self):
+        self.log_view.clear()
+
+    def _show_log_menu(self, pos):
+        m = QMenu(self)
+        a1 = m.addAction("复制选中内容")
+        a2 = m.addAction("复制全部日志")
+        m.addSeparator()
+        a3 = m.addAction("清空日志")
+        action = m.exec(self.log_view.mapToGlobal(pos))
+        if action == a1:
+            self.log_view.copy()
+        elif action == a2:
+            QApplication.clipboard().setText(self.log_view.toPlainText())
+        elif action == a3:
+            self._clear_log()
 
     # ---- 本地防重 ----
     def _show_local_menu(self):
