@@ -298,7 +298,7 @@ class VintedScraperGUI(QMainWindow):
         self.resize(500, 650)
 
         screen = QApplication.primaryScreen().geometry()
-        self.move((screen.width() - 500) // 2, (screen.height() - 540) // 2)
+        self.move((screen.width() - 500) // 2, (screen.height() - 650) // 2)
 
         self._load_config()
         self._build_ui()
@@ -390,6 +390,12 @@ class VintedScraperGUI(QMainWindow):
         top = QHBoxLayout()
         top.addWidget(QLabel("商品链接（一行一个）："))
         top.addStretch()
+        self.btn_update = QPushButton("检查更新")
+        self.btn_update.setFlat(True)
+        self.btn_update.setCursor(Qt.PointingHandCursor)
+        self.btn_update.setStyleSheet("QPushButton { font-size: 11px; color: #b0b0b0; border: none; background: transparent; } QPushButton:hover { color: #111111; }")
+        self.btn_update.clicked.connect(self._check_for_updates)
+        top.addWidget(self.btn_update)
         self.url_count_label = QLabel("有效链接：0")
         self.url_count_label.setObjectName("urlCountLabel")
         top.addWidget(self.url_count_label)
@@ -518,25 +524,18 @@ class VintedScraperGUI(QMainWindow):
         btn.setSpacing(8)
         self.btn_start = QPushButton("开始抓取")
         self.btn_start.setObjectName("btnStart")
-        self.btn_start.setToolTip("开始处理所有商品链接")
         btn.addWidget(self.btn_start)
         self.btn_stop = QPushButton("停止任务")
         self.btn_stop.setObjectName("btnStop")
         self.btn_stop.setEnabled(False)
-        self.btn_stop.setToolTip("安全停止任务")
         btn.addWidget(self.btn_stop)
+        btn.addStretch()
         self.btn_open_dir = QPushButton("打开目录")
         self.btn_open_dir.setObjectName("btnSecondary")
         btn.addWidget(self.btn_open_dir)
         self.btn_local = QPushButton("本地防重 ▾")
         self.btn_local.setObjectName("btnSecondary")
-        self.btn_local.setToolTip("选择本地图片文件或文件夹进行防重处理")
         btn.addWidget(self.btn_local)
-        btn.addStretch()
-        self.btn_update = QPushButton("检查更新")
-        self.btn_update.setObjectName("btnSecondary")
-        self.btn_update.setToolTip("检查是否有新版本")
-        btn.addWidget(self.btn_update)
         lo.addLayout(btn)
 
         parent.addWidget(g)
@@ -612,7 +611,6 @@ class VintedScraperGUI(QMainWindow):
         self.btn_open_dir.clicked.connect(self._open_save_dir)
         self.btn_clear_log.clicked.connect(self._clear_log)
         self.btn_local.clicked.connect(self._show_local_menu)
-        self.btn_update.clicked.connect(self._check_for_updates)
 
         # 窗口级拖拽：图片文件拖入触发本地防重
         self.setAcceptDrops(True)
@@ -903,11 +901,9 @@ class VintedScraperGUI(QMainWindow):
 
     def _check_for_updates(self):
         self._add_log("正在检查更新...", "info")
-        self.btn_update.setEnabled(False)
         has_update, version, changelog, url = update_checker.check_for_update()
         if not has_update:
             self._add_log(f"已是最新版本（v{update_checker.CURRENT_VERSION}）", "success")
-            self.btn_update.setEnabled(True)
             QMessageBox.information(self, "检查更新", f"已是最新版本 v{update_checker.CURRENT_VERSION}")
             return
         reply = QMessageBox.question(
@@ -916,7 +912,6 @@ class VintedScraperGUI(QMainWindow):
             QMessageBox.Yes | QMessageBox.No
         )
         if reply != QMessageBox.Yes:
-            self.btn_update.setEnabled(True)
             return
         self._add_log(f"正在下载 v{version}...", "info")
         self.status_label.setText("状态：正在下载更新...")
@@ -925,7 +920,6 @@ class VintedScraperGUI(QMainWindow):
             lambda d, t: self.status_label.setText(f"状态：正在下载更新 {d//1024//1024}/{t//1024//1024}MB"))
         if not new_exe:
             self._add_log("更新下载失败", "error")
-            self.btn_update.setEnabled(True)
             QMessageBox.critical(self, "更新失败", "下载失败，请稍后重试。")
             return
         self._add_log("正在应用更新...", "info")
