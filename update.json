@@ -1,5 +1,5 @@
 {
-  "version": "1.2.2",
-  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v1.2.2/VintedTool.exe",
-  "changelog": "修复 PyInstaller 打包后 chromedriver 提取失败的问题；增加 fallback 机制"
+  "version": "1.2.3",
+  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v1.2.3/VintedTool.exe",
+  "changelog": "修复 PyInstaller 遗漏 selenium.webdriver.chrome.options 模块导致抓取失败"
 }

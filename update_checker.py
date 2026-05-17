@@ -16,7 +16,7 @@ import subprocess
 UPDATE_URL = "https://raw.githubusercontent.com/LLUUZZQQ/vinted-tool/main/update.json"
 
 # 当前版本
-CURRENT_VERSION = "1.2.2"
+CURRENT_VERSION = "1.2.3"
 
 
 def _fetch_json(url, timeout=10):
