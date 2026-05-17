@@ -44,7 +44,7 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
     pyz, a.scripts, a.binaries, a.zipfiles, a.datas, [],
-    name='Vinted_抓图工具',
+    name='VintedTool',
     debug=False,
     bootloader_ignore_signals=False,
     strip=True,
