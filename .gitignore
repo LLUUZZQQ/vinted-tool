@@ -1,0 +1,28 @@
+# 二进制文件
+chromedriver.exe
+*.exe
+*.dll
+
+# 用户数据/配置
+vinted_config.ini
+Process_Log.txt
+Vinted_Processed_Images/
+
+# 私钥（切勿上传！）
+license_gen.py
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
+
+# 系统文件
+Thumbs.db
+.DS_Store
+desktop.ini
