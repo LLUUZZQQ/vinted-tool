@@ -96,201 +96,174 @@ class CrawlWorker(QThread):
 
 # ====================== 软件激活对话框 ======================
 class ActivationDialog(QDialog):
-    STYLE_CARD = """
-        QFrame[objectName="card"] { background: #fafbfc; border: 1px solid #e8eaed;
-        border-radius: 10px; padding: 14px; }
-    """
-    STYLE_LABEL = "font-size: 13px; font-weight: 600; color: #374151; background: transparent;"
-    STYLE_HINT = "font-size: 11px; color: #9ca3af; background: transparent; padding-left: 2px;"
-    STYLE_STEP = "font-size: 12px; font-weight: bold; color: #ffffff; background: #111111; border-radius: 8px; padding: 1px 6px;"
-    STYLE_SEPARATOR = "QFrame { border: none; border-top: 1px solid #e8eaed; background: transparent; max-height: 1px; }"
-    STYLE_INPUT_RO = """
-        QLineEdit { font-family: Consolas, monospace; font-size: 14px; letter-spacing: 1px;
-        background: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px;
-        padding: 8px 12px; color: #111111; }
-        QLineEdit:focus { border-color: #111111; }
-    """
-    STYLE_INPUT = """
-        QLineEdit { font-family: Consolas, monospace; font-size: 13px;
-        background: #ffffff; border: 2px solid #d0d5dd; border-radius: 8px;
-        padding: 9px 12px; color: #111111; }
-        QLineEdit:focus { border-color: #111111; }
-    """
-    STYLE_BTN_PRIMARY = """
-        QPushButton { font-size: 13px; font-weight: 600; background: #111111;
-        border: none; border-radius: 8px; padding: 10px 32px; color: #ffffff; }
-        QPushButton:hover { background: #2d2d2d; }
-        QPushButton:disabled { background: #c0c0c0; }
-    """
-    STYLE_BTN_SECONDARY = """
-        QPushButton { font-size: 13px; background: #ffffff; border: 1px solid #d0d5dd;
-        border-radius: 8px; padding: 10px 24px; color: #6b7280; }
-        QPushButton:hover { background: #f9fafb; color: #374151; }
-    """
-    STYLE_BTN_SMALL = """
-        QPushButton { font-size: 12px; background: #f3f4f6; border: 1px solid #d1d5db;
-        border-radius: 6px; padding: 5px 12px; color: #374151; }
-        QPushButton:hover { background: #e5e7eb; }
-        QPushButton:pressed { background: #d1d5db; }
-    """
-    STYLE_MSG_OK = "font-size: 12px; color: #10b981; background: transparent;"
-    STYLE_MSG_ERR = "font-size: 12px; color: #ef4444; background: transparent;"
-    STYLE_MSG_INFO = "font-size: 12px; color: #6b7280; background: transparent;"
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self._activated = False
         self.setWindowTitle("Vinted Tool — 软件激活")
-        self.setFixedSize(440, 360)
+        self.setFixedSize(440, 400)
         self.setWindowFlags(Qt.Dialog | Qt.MSWindowsFixedSizeDialogHint)
-        self.setStyleSheet("QDialog { background-color: #ffffff; }")
+        self.setStyleSheet("""
+            QDialog { background-color: #ffffff; }
+            QLabel { color: #374151; background: transparent; }
+        """)
         self._build_ui()
 
     def _make_card(self):
         card = QFrame()
-        card.setObjectName("card")
-        card.setStyleSheet(self.STYLE_CARD)
+        card.setStyleSheet("""
+            QFrame { background: #fafbfc; border: 1px solid #e8eaed;
+            border-radius: 8px; }
+        """)
         return card
+
+    def _make_separator(self):
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet("QFrame { border: none; border-top: 1px solid #e8eaed; background: transparent; }")
+        sep.setFixedHeight(1)
+        return sep
 
     def _build_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(32, 28, 32, 24)
+        root.setContentsMargins(30, 24, 30, 20)
         root.setSpacing(0)
 
-        # ---- 标题区 ----
-        icon = QLabel("Vinted")
-        icon.setAlignment(Qt.AlignCenter)
-        icon.setStyleSheet("font-size: 22px; font-weight: 700; color: #111111; letter-spacing: 2px; background: transparent;")
-        root.addWidget(icon)
+        # ---- 标题 ----
+        brand = QLabel("Vinted")
+        brand.setAlignment(Qt.AlignCenter)
+        brand.setStyleSheet("font-size: 20px; font-weight: 700; color: #111111;")
+        root.addWidget(brand)
+        sub = QLabel("软件激活")
+        sub.setAlignment(Qt.AlignCenter)
+        sub.setStyleSheet("font-size: 12px; color: #9ca3af;")
+        root.addWidget(sub)
+        root.addSpacing(16)
 
-        title = QLabel("软件激活")
-        title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 12px; color: #9ca3af; background: transparent; margin-top: 2px;")
-        root.addWidget(title)
+        # ---- 步骤 1 ----
+        s1h = QHBoxLayout(); s1h.setSpacing(6)
+        s1h.addWidget(self._step_badge("1"))
+        s1h.addWidget(self._section_title("设备标识"))
+        s1h.addStretch()
+        root.addLayout(s1h)
+        root.addSpacing(4)
 
-        root.addSpacing(18)
-
-        # ---- 步骤 1：设备标识 ----
-        s1_row = QHBoxLayout()
-        s1_row.setSpacing(8)
-        s1_step = QLabel("1")
-        s1_step.setAlignment(Qt.AlignCenter)
-        s1_step.setFixedSize(18, 18)
-        s1_step.setStyleSheet(self.STYLE_STEP)
-        s1_row.addWidget(s1_step)
-        s1_text = QLabel("设备标识")
-        s1_text.setStyleSheet(self.STYLE_LABEL)
-        s1_row.addWidget(s1_text)
-        s1_row.addStretch()
-        root.addLayout(s1_row)
-
-        root.addSpacing(6)
-
-        s1_card = self._make_card()
-        s1_lo = QHBoxLayout(s1_card)
-        s1_lo.setContentsMargins(0, 0, 0, 0)
-        s1_lo.setSpacing(8)
+        c1 = self._make_card()
+        c1l = QHBoxLayout(c1); c1l.setContentsMargins(8, 2, 8, 2); c1l.setSpacing(6)
         self.hwid_display = QLineEdit()
         self.hwid_display.setReadOnly(True)
         self.hwid_display.setText(license_mgr.get_hwid())
-        self.hwid_display.setStyleSheet(self.STYLE_INPUT_RO)
-        s1_lo.addWidget(self.hwid_display, 1)
-        btn_copy = QPushButton("复制")
-        btn_copy.setStyleSheet(self.STYLE_BTN_SMALL)
-        btn_copy.clicked.connect(self._copy_hwid)
-        s1_lo.addWidget(btn_copy)
-        root.addWidget(s1_card)
+        self.hwid_display.setStyleSheet("""
+            QLineEdit { border: none; background: transparent; font-family: Consolas;
+            font-size: 14px; letter-spacing: 1px; color: #111111; padding: 4px 0; }
+        """)
+        c1l.addWidget(self.hwid_display, 1)
+        b1 = QPushButton("复制")
+        b1.setFixedWidth(44)
+        b1.setStyleSheet("""
+            QPushButton { font-size: 12px; background: #ffffff; border: 1px solid #d1d5db;
+            border-radius: 4px; padding: 3px 0; color: #374151; }
+            QPushButton:hover { background: #f3f4f6; }
+            QPushButton:pressed { background: #e5e7eb; }
+        """)
+        b1.clicked.connect(self._copy_hwid)
+        c1l.addWidget(b1)
+        root.addWidget(c1)
 
-        hint1 = QLabel("请将以上标识发送给卖家获取激活码")
-        hint1.setStyleSheet(self.STYLE_HINT)
-        root.addWidget(hint1)
+        root.addWidget(self._hint("请将以上标识发送给卖家获取激活码"))
+        root.addSpacing(12)
 
-        root.addSpacing(14)
+        # ---- 步骤 2 ----
+        s2h = QHBoxLayout(); s2h.setSpacing(6)
+        s2h.addWidget(self._step_badge("2"))
+        s2h.addWidget(self._section_title("激活码"))
+        s2h.addStretch()
+        root.addLayout(s2h)
+        root.addSpacing(4)
 
-        # ---- 步骤 2：激活码 ----
-        s2_row = QHBoxLayout()
-        s2_row.setSpacing(8)
-        s2_step = QLabel("2")
-        s2_step.setAlignment(Qt.AlignCenter)
-        s2_step.setFixedSize(18, 18)
-        s2_step.setStyleSheet(self.STYLE_STEP)
-        s2_row.addWidget(s2_step)
-        s2_text = QLabel("激活码")
-        s2_text.setStyleSheet(self.STYLE_LABEL)
-        s2_row.addWidget(s2_text)
-        s2_row.addStretch()
-        root.addLayout(s2_row)
-
-        root.addSpacing(6)
-
-        s2_card = self._make_card()
-        s2_lo = QVBoxLayout(s2_card)
-        s2_lo.setContentsMargins(0, 0, 0, 0)
+        c2 = self._make_card()
+        c2l = QVBoxLayout(c2); c2l.setContentsMargins(8, 2, 8, 2)
         self.code_input = QLineEdit()
         self.code_input.setPlaceholderText("粘贴激活码到此处")
-        self.code_input.setStyleSheet(self.STYLE_INPUT)
-        s2_lo.addWidget(self.code_input)
-        root.addWidget(s2_card)
+        self.code_input.setStyleSheet("""
+            QLineEdit { border: none; background: transparent; font-family: Consolas;
+            font-size: 13px; color: #111111; padding: 4px 0; }
+        """)
+        c2l.addWidget(self.code_input)
+        root.addWidget(c2)
 
-        hint2 = QLabel("激活码由卖家提供，一机一码")
-        hint2.setStyleSheet(self.STYLE_HINT)
-        root.addWidget(hint2)
-
+        root.addWidget(self._hint("激活码由卖家提供，一机一码"))
         root.addSpacing(14)
 
         # ---- 状态提示 ----
         self.msg_label = QLabel("")
         self.msg_label.setAlignment(Qt.AlignCenter)
-        self.msg_label.setStyleSheet(self.STYLE_MSG_INFO + " min-height: 20px;")
+        self.msg_label.setStyleSheet("font-size: 12px; color: #6b7280; min-height: 18px;")
         root.addWidget(self.msg_label)
-
         root.addSpacing(8)
 
         # ---- 按钮 ----
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(12)
-        btn_row.addStretch()
+        bh = QHBoxLayout(); bh.setSpacing(10)
+        bh.addStretch()
         self.btn_activate = QPushButton("激活软件")
-        self.btn_activate.setStyleSheet(self.STYLE_BTN_PRIMARY)
+        self.btn_activate.setStyleSheet("""
+            QPushButton { font-size: 13px; font-weight: 600; background: #111111;
+            border: none; border-radius: 6px; padding: 8px 28px; color: #ffffff; }
+            QPushButton:hover { background: #2d2d2d; }
+            QPushButton:disabled { background: #b0b0b0; }
+        """)
         self.btn_activate.setCursor(Qt.PointingHandCursor)
         self.btn_activate.clicked.connect(self._do_activate)
-        btn_row.addWidget(self.btn_activate)
+        bh.addWidget(self.btn_activate)
         self.btn_exit = QPushButton("退出")
-        self.btn_exit.setStyleSheet(self.STYLE_BTN_SECONDARY)
+        self.btn_exit.setStyleSheet("""
+            QPushButton { font-size: 13px; background: #ffffff; border: 1px solid #d1d5db;
+            border-radius: 6px; padding: 8px 22px; color: #6b7280; }
+            QPushButton:hover { background: #f9fafb; color: #374151; }
+        """)
         self.btn_exit.clicked.connect(self.reject)
-        btn_row.addWidget(self.btn_exit)
-        btn_row.addStretch()
-        root.addLayout(btn_row)
+        bh.addWidget(self.btn_exit)
+        bh.addStretch()
+        root.addLayout(bh)
 
-        root.addSpacing(16)
-
-        # ---- 联系方式 ----
-        line = QFrame()
-        line.setFrameShape(QFrame.HLine)
-        line.setStyleSheet(self.STYLE_SEPARATOR)
-        root.addWidget(line)
-
-        root.addSpacing(10)
-
-        contact = QLabel("微信：UU_L777777")
+        root.addSpacing(14)
+        root.addWidget(self._make_separator())
+        root.addSpacing(8)
+        contact = QLabel("需要激活码？请联系 微信：UU_L777777")
         contact.setAlignment(Qt.AlignCenter)
-        contact.setStyleSheet("font-size: 11px; color: #b0b0b0; background: transparent;")
+        contact.setStyleSheet("font-size: 11px; color: #b0b0b0;")
         root.addWidget(contact)
+
+    def _step_badge(self, num):
+        b = QLabel(num)
+        b.setAlignment(Qt.AlignCenter)
+        b.setFixedSize(16, 16)
+        b.setStyleSheet("font-size: 11px; font-weight: bold; color: #fff; background: #111111; border-radius: 8px;")
+        return b
+
+    def _section_title(self, text):
+        l = QLabel(text)
+        l.setStyleSheet("font-size: 13px; font-weight: 600; color: #374151;")
+        return l
+
+    def _hint(self, text):
+        l = QLabel(text)
+        l.setStyleSheet("font-size: 11px; color: #9ca3af; padding: 2px 0;")
+        return l
 
     def _copy_hwid(self):
         QApplication.clipboard().setText(self.hwid_display.text())
-        self.msg_label.setStyleSheet(self.STYLE_MSG_OK)
+        self.msg_label.setStyleSheet("font-size: 12px; color: #10b981;")
         self.msg_label.setText("已复制，请发送给卖家")
 
     def _do_activate(self):
         code = self.code_input.text().strip()
         if not code:
-            self.msg_label.setStyleSheet(self.STYLE_MSG_ERR)
+            self.msg_label.setStyleSheet("font-size: 12px; color: #ef4444;")
             self.msg_label.setText("请先粘贴激活码")
             return
         self.btn_activate.setEnabled(False)
         self.btn_activate.setText("验证中...")
-        self.msg_label.setStyleSheet(self.STYLE_MSG_INFO)
+        self.msg_label.setStyleSheet("font-size: 12px; color: #6b7280;")
         self.msg_label.setText("正在验证激活码...")
         QApplication.processEvents()
         try:
@@ -301,12 +274,12 @@ class ActivationDialog(QDialog):
             else:
                 self.btn_activate.setEnabled(True)
                 self.btn_activate.setText("激活软件")
-                self.msg_label.setStyleSheet(self.STYLE_MSG_ERR)
+                self.msg_label.setStyleSheet("font-size: 12px; color: #ef4444;")
                 self.msg_label.setText(msg)
         except Exception as e:
             self.btn_activate.setEnabled(True)
             self.btn_activate.setText("激活软件")
-            self.msg_label.setStyleSheet(self.STYLE_MSG_ERR)
+            self.msg_label.setStyleSheet("font-size: 12px; color: #ef4444;")
             self.msg_label.setText(f"激活出错：{e}")
 
     def is_activated(self):
