@@ -487,8 +487,6 @@ class VintedScraperGUI(QMainWindow):
         self._build_task_section(root)
         if not RELEASE_MODE:
             self._build_log_section(root)
-        else:
-            root.addStretch()
 
     # ---- 模块 1：商品链接管理 ----
     def _build_url_section(self, parent):
