@@ -1,5 +1,5 @@
 {
-  "version": "2.3.1",
-  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v2.3.1/VT_ImageMAX.exe",
-  "changelog": "修复 WebDriverManager 参数兼容性问题，补充缺失模块"
+  "version": "2.4.0",
+  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v2.4.0/VT_ImageMAX.exe",
+  "changelog": "回退到捆绑 chromedriver 方案，最稳定可靠"
 }

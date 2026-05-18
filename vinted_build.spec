@@ -7,11 +7,12 @@ a = Analysis(
     binaries=[],
     datas=[
         ('vinted_style.qss', '.'),
+        ('chromedriver.exe', '.'),
         ('app_icon.ico', '.'),
     ],
     hiddenimports=[
         'license_system', 'update_checker', 'Vinted_抓图',
-        'cryptography', 'webdriver_manager',
+        'cryptography',
         'piexif', 'numpy',
         'PIL', 'PIL.Image', 'PIL.ImageEnhance', 'PIL.ImageFilter',
         'PIL.ImageDraw', 'PIL.ImageFont',
@@ -25,8 +26,6 @@ a = Analysis(
         'win32api', 'win32con', 'win32com', 'win32com.client',
         'requests', 'urllib3',
         'configparser', 'shutil', 'hashlib', 'string', 'threading',
-        'urllib.request', 'urllib.error', 'urllib.parse',
-        'json', 'zipfile', 'io', 'winreg',
     ],
     hookspath=[],
     hooksconfig={},
