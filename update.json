@@ -1,5 +1,1 @@
-{
-  "version": "2.5.0",
-  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v2.5.0/VT_ImageMAX.exe",
-  "changelog": "方案C：未装Chrome时自动下载便携版，零依赖零操作，无管理员权限要求"
-}
+{"version":"2.5.1","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v2.5.1/VT_ImageMAX.exe","changelog":"边缘裁剪增至2px，彻底消除白边"}
