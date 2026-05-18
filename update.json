@@ -1,5 +1,5 @@
 {
-  "version": "2.0.1",
-  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v2.0.1/VT_ImageMAX.exe",
-  "changelog": "修复图片处理后四周出现白色边缘的问题"
+  "version": "2.1.0",
+  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v2.1.0/VT_ImageMAX.exe",
+  "changelog": "四个开关合并一排，智能画质和原画输出互斥选择"
 }
