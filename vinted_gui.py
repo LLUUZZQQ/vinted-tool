@@ -22,6 +22,99 @@ import update_checker
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
 RELEASE_MODE = False
 
+# 发布版专业文案映射（旧文本→新文本）
+_RELEASE_DICT = {
+    # 分组标题
+    "商品链接管理": "任务队列",
+    "基础参数设置": "处理配置",
+    "任务操作": "执行控制",
+    "运行日志": "处理记录",
+    # 标签
+    "商品链接（一行一个）：": "Vinted 商品链接：",
+    "保存路径：": "存储路径：",
+    "拍摄地理：": "地理信息：",
+    "有效链接：": "队列：",
+    "成功：": "✓ ",
+    "失败：": "✗ ",
+    "状态：空闲中": "就绪",
+    "状态：已停止": "已终止",
+    "状态：已完成": "处理完成",
+    "状态：正在停止任务": "正在安全终止...",
+    "授权剩余": "授权有效期",
+    # 复选框
+    "智能压缩": "智能画质",
+    "隐形水印": "数字水印",
+    "无损画质": "原画输出",
+    "高级防检测": "AI 防护",
+    # 按钮
+    "开始抓取": "开始采集",
+    "停止任务": "终止",
+    "打开目录": "浏览文件",
+    "本地防重 ▾": "本地处理 ▾",
+    "一键清空": "清空",
+    "批量导入": "导入",
+    "链接去重": "去重",
+    "导出失败链接": "导出失败项",
+    "恢复默认": "重置",
+    "清空日志": "清空",
+    "检查更新": "版本更新",
+    "激活软件": "激活",
+    "验证中...": "验证中...",
+    "复制": "复制",
+    "退出": "退出",
+    # 状态消息
+    "正在启动浏览器": "正在初始化引擎...",
+    "正在抓取商品图片": "正在采集商品图像...",
+    "正在处理图片": "正在重构图像...",
+    "开始抓取商品": "开始采集",
+    "已获取页面 Cookie": "已建立安全会话",
+    "已加载": "已解析",
+    "缩略图": "预览",
+    "收集到": "获取",
+    "张大图": "张图像",
+    "提取到": "采集到",
+    "有效高清原图": "高清原始图像",
+    "下载成功": "获取成功",
+    "防重处理成功": "图像重构完成",
+    "已写入地理信息": "已嵌入位置元数据",
+    "商品处理完成": "采集完成",
+    "商品抓取失败": "采集失败",
+    "浏览器启动失败": "引擎初始化失败",
+    "Chrome 已启动": "渲染引擎已就绪",
+    "Chrome 浏览器已关闭": "渲染引擎已关闭",
+    "全部完成": "任务结束",
+    "任务已停止": "任务已终止",
+    "Server Error": "服务器异常",
+    "未找到商品容器": "页面结构异常",
+    "页面加载失败": "页面加载失败",
+    "未提取到商品图片": "未能提取图像数据",
+    "分辨率升级": "画质增强",
+    "张已升级": "张已优化",
+    "已复制": "已复制",
+    "请发送给卖家": "请发送给卖家",
+    "已是最新版本": "已是最新版本",
+    "发现新版本": "发现新版本",
+    "正在下载更新": "正在获取更新...",
+    "更新下载失败": "更新获取失败",
+    "正在应用更新": "正在安装更新...",
+    "正在检查更新": "正在检查更新...",
+    "状态：正在下载更新": "正在获取更新包...",
+    "请先粘贴激活码": "请输入激活码",
+    "正在验证激活码...": "正在验证授权...",
+    "激活出错：": "验证失败：",
+    "已复制，请发送给卖家": "已复制标识，请发送给卖家",
+}
+
+
+def _tr(text):
+    """发布模式下替换文案为专业表述"""
+    if not RELEASE_MODE:
+        return text
+    result = text
+    for old, new in _RELEASE_DICT.items():
+        result = result.replace(old, new)
+    return result
+
 
 # ====================== 拖拽文本框 ======================
 class DropPlainTextEdit(QPlainTextEdit):
@@ -135,7 +228,7 @@ class ActivationDialog(QDialog):
         brand.setAlignment(Qt.AlignCenter)
         brand.setStyleSheet("font-size: 20px; font-weight: 700; color: #111111;")
         root.addWidget(brand)
-        sub = QLabel("软件激活")
+        sub = QLabel(_tr("软件激活"))
         sub.setAlignment(Qt.AlignCenter)
         sub.setStyleSheet("font-size: 12px; color: #9ca3af;")
         root.addWidget(sub)
@@ -144,7 +237,7 @@ class ActivationDialog(QDialog):
         # ---- 步骤 1 ----
         s1h = QHBoxLayout(); s1h.setSpacing(6)
         s1h.addWidget(self._step_badge("1"))
-        s1h.addWidget(self._section_title("设备标识"))
+        s1h.addWidget(self._section_title(_tr("设备标识")))
         s1h.addStretch()
         root.addLayout(s1h)
         root.addSpacing(4)
@@ -171,13 +264,13 @@ class ActivationDialog(QDialog):
         c1l.addWidget(b1)
         root.addWidget(c1)
 
-        root.addWidget(self._hint("请将以上标识发送给卖家获取激活码"))
+        root.addWidget(self._hint(_tr("请将以上标识发送给卖家获取激活码")))
         root.addSpacing(12)
 
         # ---- 步骤 2 ----
         s2h = QHBoxLayout(); s2h.setSpacing(6)
         s2h.addWidget(self._step_badge("2"))
-        s2h.addWidget(self._section_title("激活码"))
+        s2h.addWidget(self._section_title(_tr("激活码")))
         s2h.addStretch()
         root.addLayout(s2h)
         root.addSpacing(4)
@@ -185,7 +278,7 @@ class ActivationDialog(QDialog):
         c2 = self._make_card()
         c2l = QVBoxLayout(c2); c2l.setContentsMargins(8, 2, 8, 2)
         self.code_input = QLineEdit()
-        self.code_input.setPlaceholderText("粘贴激活码到此处")
+        self.code_input.setPlaceholderText(_tr("粘贴激活码到此处"))
         self.code_input.setStyleSheet("""
             QLineEdit { border: none; background: transparent; font-family: Consolas;
             font-size: 13px; color: #111111; padding: 4px 0; }
@@ -193,7 +286,7 @@ class ActivationDialog(QDialog):
         c2l.addWidget(self.code_input)
         root.addWidget(c2)
 
-        root.addWidget(self._hint("激活码由卖家提供，一机一码"))
+        root.addWidget(self._hint(_tr("激活码由卖家提供，一机一码")))
         root.addSpacing(14)
 
         # ---- 状态提示 ----
@@ -206,7 +299,7 @@ class ActivationDialog(QDialog):
         # ---- 按钮 ----
         bh = QHBoxLayout(); bh.setSpacing(10)
         bh.addStretch()
-        self.btn_activate = QPushButton("激活软件")
+        self.btn_activate = QPushButton(_tr("激活软件"))
         self.btn_activate.setStyleSheet("""
             QPushButton { font-size: 13px; font-weight: 600; background: #111111;
             border: none; border-radius: 6px; padding: 8px 28px; color: #ffffff; }
@@ -216,7 +309,7 @@ class ActivationDialog(QDialog):
         self.btn_activate.setCursor(Qt.PointingHandCursor)
         self.btn_activate.clicked.connect(self._do_activate)
         bh.addWidget(self.btn_activate)
-        self.btn_exit = QPushButton("退出")
+        self.btn_exit = QPushButton(_tr("退出"))
         self.btn_exit.setStyleSheet("""
             QPushButton { font-size: 13px; background: #ffffff; border: 1px solid #d1d5db;
             border-radius: 6px; padding: 8px 22px; color: #6b7280; }
@@ -230,7 +323,7 @@ class ActivationDialog(QDialog):
         root.addSpacing(14)
         root.addWidget(self._make_separator())
         root.addSpacing(8)
-        contact = QLabel("需要激活码？请联系 微信：UU_L777777")
+        contact = QLabel(_tr("需要激活码？请联系 微信：UU_L777777"))
         contact.setAlignment(Qt.AlignCenter)
         contact.setStyleSheet("font-size: 11px; color: #b0b0b0;")
         root.addWidget(contact)
@@ -255,18 +348,18 @@ class ActivationDialog(QDialog):
     def _copy_hwid(self):
         QApplication.clipboard().setText(self.hwid_display.text())
         self.msg_label.setStyleSheet("font-size: 12px; color: #10b981;")
-        self.msg_label.setText("已复制，请发送给卖家")
+        self.msg_label.setText(_tr("已复制，请发送给卖家"))
 
     def _do_activate(self):
         code = self.code_input.text().strip()
         if not code:
             self.msg_label.setStyleSheet("font-size: 12px; color: #ef4444;")
-            self.msg_label.setText("请先粘贴激活码")
+            self.msg_label.setText(_tr("请先粘贴激活码"))
             return
         self.btn_activate.setEnabled(False)
-        self.btn_activate.setText("验证中...")
+        self.btn_activate.setText(_tr("验证中..."))
         self.msg_label.setStyleSheet("font-size: 12px; color: #6b7280;")
-        self.msg_label.setText("正在验证激活码...")
+        self.msg_label.setText(_tr("正在验证激活码..."))
         QApplication.processEvents()
         try:
             ok, msg = license_mgr.activate(code)
@@ -296,7 +389,7 @@ class VintedScraperGUI(QMainWindow):
         self._local_worker = None
         self._geo_setting_up = False
 
-        self.setWindowTitle(f"Vinted 商品图片抓取工具 v{update_checker.CURRENT_VERSION}")
+        self.setWindowTitle(_tr(f"Vinted 商品图片抓取工具 v{update_checker.CURRENT_VERSION}"))
         if RELEASE_MODE:
             self.setMinimumSize(440, 460)
             self.resize(500, 500)
@@ -316,9 +409,9 @@ class VintedScraperGUI(QMainWindow):
         # 显示授权到期信息
         _, _, remaining = license_mgr.check_license()
         if remaining is not None:
-            self.license_label.setText(f"授权剩余 {remaining} 天")
+            self.license_label.setText(_tr(f"授权剩余 {remaining} 天"))
         else:
-            self.license_label.setText("永久授权")
+            self.license_label.setText(_tr("永久授权"))
 
         # 启动后 3 秒静默检查更新
         QTimer.singleShot(3000, self._auto_check_update)
@@ -397,43 +490,43 @@ class VintedScraperGUI(QMainWindow):
 
     # ---- 模块 1：商品链接管理 ----
     def _build_url_section(self, parent):
-        g = QGroupBox("商品链接管理")
+        g = QGroupBox(_tr("商品链接管理"))
         lo = QVBoxLayout(g)
         lo.setContentsMargins(0, 8, 0, 4)
         lo.setSpacing(4)
 
         top = QHBoxLayout()
-        top.addWidget(QLabel("商品链接（一行一个）："))
+        top.addWidget(QLabel(_tr("商品链接（一行一个）：")))
         top.addStretch()
-        self.btn_update = QPushButton("检查更新")
+        self.btn_update = QPushButton(_tr("检查更新"))
         self.btn_update.setFlat(True)
         self.btn_update.setCursor(Qt.PointingHandCursor)
         self.btn_update.setStyleSheet("QPushButton { font-size: 11px; color: #b0b0b0; border: none; background: transparent; } QPushButton:hover { color: #111111; }")
         self.btn_update.clicked.connect(self._check_for_updates)
         top.addWidget(self.btn_update)
-        self.url_count_label = QLabel("有效链接：0")
+        self.url_count_label = QLabel(_tr("有效链接：0"))
         self.url_count_label.setObjectName("urlCountLabel")
         top.addWidget(self.url_count_label)
         lo.addLayout(top)
 
         self.txt_urls = DropPlainTextEdit()
-        self.txt_urls.setPlaceholderText("粘贴 Vinted 商品链接，一行一个...（也可拖拽 .txt 文件）")
+        self.txt_urls.setPlaceholderText(_tr("粘贴 Vinted 商品链接，一行一个...（也可拖拽 .txt 文件）"))
         self.txt_urls.setMaximumHeight(68)
         lo.addWidget(self.txt_urls)
 
         btn = QHBoxLayout()
         btn.setSpacing(6)
-        self.btn_clear_urls = QPushButton("一键清空")
+        self.btn_clear_urls = QPushButton(_tr("一键清空"))
         self.btn_clear_urls.setObjectName("btnSecondary")
         btn.addWidget(self.btn_clear_urls)
-        self.btn_import_urls = QPushButton("批量导入")
+        self.btn_import_urls = QPushButton(_tr("批量导入"))
         self.btn_import_urls.setObjectName("btnSecondary")
         btn.addWidget(self.btn_import_urls)
-        self.btn_dedup_urls = QPushButton("链接去重")
+        self.btn_dedup_urls = QPushButton(_tr("链接去重"))
         self.btn_dedup_urls.setObjectName("btnSecondary")
         btn.addWidget(self.btn_dedup_urls)
         btn.addStretch()
-        self.btn_export_fail = QPushButton("导出失败链接")
+        self.btn_export_fail = QPushButton(_tr("导出失败链接"))
         self.btn_export_fail.setObjectName("btnSecondary")
         btn.addWidget(self.btn_export_fail)
         lo.addLayout(btn)
@@ -442,7 +535,7 @@ class VintedScraperGUI(QMainWindow):
 
     # ---- 模块 2：基础参数设置 ----
     def _build_settings_section(self, parent):
-        g = QGroupBox("基础参数设置")
+        g = QGroupBox(_tr("基础参数设置"))
         lo = QVBoxLayout(g)
         lo.setContentsMargins(0, 8, 0, 4)
         lo.setSpacing(6)
@@ -450,11 +543,11 @@ class VintedScraperGUI(QMainWindow):
         # 行 1：保存路径
         r1 = QHBoxLayout()
         r1.setSpacing(6)
-        r1.addWidget(QLabel("保存路径：", fixedWidth=60))
+        r1.addWidget(QLabel(_tr("保存路径："), fixedWidth=60))
         self.entry_path = QLineEdit()
         self.entry_path.setPlaceholderText(backend.DEFAULT_SAVE_ROOT)
         r1.addWidget(self.entry_path, 1)
-        self.btn_browse = QPushButton("浏览")
+        self.btn_browse = QPushButton(_tr("浏览"))
         self.btn_browse.setObjectName("btnBrowse")
         r1.addWidget(self.btn_browse)
         lo.addLayout(r1)
@@ -462,7 +555,7 @@ class VintedScraperGUI(QMainWindow):
         # 行 2：拍摄地理
         r2 = QHBoxLayout()
         r2.setSpacing(6)
-        r2.addWidget(QLabel("拍摄地理：", fixedWidth=60))
+        r2.addWidget(QLabel(_tr("拍摄地理："), fixedWidth=60))
         self.combo_country = QComboBox()
         self.combo_country.addItems(list(backend.GEO_DATA.keys()))
         self.combo_country.wheelEvent = lambda e: e.ignore()
@@ -479,14 +572,14 @@ class VintedScraperGUI(QMainWindow):
         # 行 3：复选框 + 恢复按钮
         r3 = QHBoxLayout()
         r3.setSpacing(12)
-        self.chk_compress = QCheckBox("智能压缩")
+        self.chk_compress = QCheckBox(_tr("智能压缩"))
         self.chk_compress.setToolTip("智能压缩图片，肉眼无感知")
         r3.addWidget(self.chk_compress)
-        self.chk_watermark = QCheckBox("隐形水印")
+        self.chk_watermark = QCheckBox(_tr("隐形水印"))
         self.chk_watermark.setToolTip("添加隐形防重水印")
         r3.addWidget(self.chk_watermark)
         r3.addStretch()
-        self.btn_reset = QPushButton("恢复默认")
+        self.btn_reset = QPushButton(_tr("恢复默认"))
         self.btn_reset.setObjectName("btnSecondary")
         r3.addWidget(self.btn_reset)
         lo.addLayout(r3)
@@ -494,10 +587,10 @@ class VintedScraperGUI(QMainWindow):
         # 行 3b：高级复选框
         r3b = QHBoxLayout()
         r3b.setSpacing(12)
-        self.chk_lossless = QCheckBox("无损画质")
+        self.chk_lossless = QCheckBox(_tr("无损画质"))
         self.chk_lossless.setToolTip("quality=100，防重效果减弱")
         r3b.addWidget(self.chk_lossless)
-        self.chk_advanced_anti_detect = QCheckBox("高级防检测")
+        self.chk_advanced_anti_detect = QCheckBox(_tr("高级防检测"))
         self.chk_advanced_anti_detect.setToolTip("JPEG块破坏+传感器噪声模拟+空间亮度渐变+EXIF增强")
         r3b.addWidget(self.chk_advanced_anti_detect)
         r3b.addStretch()
@@ -507,14 +600,14 @@ class VintedScraperGUI(QMainWindow):
 
     # ---- 模块 3：任务操作 ----
     def _build_task_section(self, parent):
-        g = QGroupBox("任务操作")
+        g = QGroupBox(_tr("任务操作"))
         lo = QVBoxLayout(g)
         lo.setContentsMargins(0, 8, 0, 4)
         lo.setSpacing(6)
 
         # 状态 + 统计
         bar = QHBoxLayout()
-        self.status_label = QLabel("状态：空闲中")
+        self.status_label = QLabel(_tr("状态：空闲中"))
         self.status_label.setObjectName("statusLabel")
         bar.addWidget(self.status_label)
         bar.addStretch()
@@ -522,7 +615,7 @@ class VintedScraperGUI(QMainWindow):
         self.license_label.setObjectName("licenseLabel")
         bar.addWidget(self.license_label)
         bar.addSpacing(12)
-        self.stat_label = QLabel("成功：0 | 失败：0")
+        self.stat_label = QLabel(_tr("成功：0 | 失败：0"))
         self.stat_label.setObjectName("statLabel")
         bar.addWidget(self.stat_label)
         lo.addLayout(bar)
@@ -537,18 +630,18 @@ class VintedScraperGUI(QMainWindow):
         # 按钮
         btn = QHBoxLayout()
         btn.setSpacing(8)
-        self.btn_start = QPushButton("开始抓取")
+        self.btn_start = QPushButton(_tr("开始抓取"))
         self.btn_start.setObjectName("btnStart")
         btn.addWidget(self.btn_start)
-        self.btn_stop = QPushButton("停止任务")
+        self.btn_stop = QPushButton(_tr("停止任务"))
         self.btn_stop.setObjectName("btnStop")
         self.btn_stop.setEnabled(False)
         btn.addWidget(self.btn_stop)
         btn.addStretch()
-        self.btn_open_dir = QPushButton("打开目录")
+        self.btn_open_dir = QPushButton(_tr("打开目录"))
         self.btn_open_dir.setObjectName("btnSecondary")
         btn.addWidget(self.btn_open_dir)
-        self.btn_local = QPushButton("本地防重 ▾")
+        self.btn_local = QPushButton(_tr("本地防重 ▾"))
         self.btn_local.setObjectName("btnSecondary")
         btn.addWidget(self.btn_local)
         lo.addLayout(btn)
@@ -557,14 +650,14 @@ class VintedScraperGUI(QMainWindow):
 
     # ---- 模块 4：运行日志 ----
     def _build_log_section(self, parent):
-        g = QGroupBox("运行日志")
+        g = QGroupBox(_tr("运行日志"))
         lo = QVBoxLayout(g)
         lo.setContentsMargins(0, 8, 0, 2)
         lo.setSpacing(4)
 
         tb = QHBoxLayout()
         tb.addStretch()
-        self.btn_clear_log = QPushButton("清空日志")
+        self.btn_clear_log = QPushButton(_tr("清空日志"))
         self.btn_clear_log.setObjectName("btnSecondary")
         tb.addWidget(self.btn_clear_log)
         lo.addLayout(tb)
@@ -774,18 +867,18 @@ class VintedScraperGUI(QMainWindow):
         self._save_config()
 
         self._set_ui_running(True)
-        self.status_label.setText("状态：正在启动任务")
+        self.status_label.setText(_tr("状态：正在启动任务"))
 
         self._worker = CrawlWorker(text, False)
         self._worker.log_signal.connect(self._add_log)
-        self._worker.status_signal.connect(lambda s: self.status_label.setText(f"状态：{s}"))
+        self._worker.status_signal.connect(lambda s: self.status_label.setText(_tr(f"状态：{s}")))
         self._worker.progress_signal.connect(self._on_progress)
         self._worker.finished_signal.connect(self._on_task_finished)
         self._worker.start()
 
     def _stop_crawl(self):
         backend.STOP_TASK = True
-        self.status_label.setText("状态：正在停止任务")
+        self.status_label.setText(_tr("状态：正在停止任务"))
         self.btn_stop.setEnabled(False)
         self._add_log("⚠️ 正在停止任务，请稍候...", "warning")
 
@@ -793,20 +886,20 @@ class VintedScraperGUI(QMainWindow):
         if total > 0:
             self.progress_bar.setMaximum(total)
             self.progress_bar.setValue(current)
-        self.stat_label.setText(f"成功：{success} | 失败：{fail}")
+        self.stat_label.setText(_tr(f"成功：{success} | 失败：{fail}"))
 
     def _on_task_finished(self, stopped):
         self._set_ui_running(False)
         self._worker = None
-        self.status_label.setText("状态：已停止" if stopped else "状态：已完成")
+        self.status_label.setText(_tr("状态：已停止") if stopped else "状态：已完成")
 
         total, success, fail = backend.TOTAL_TASKS, backend.SUCCESS_COUNT, backend.FAIL_COUNT
         msg = QMessageBox(self)
-        msg.setWindowTitle("任务完成")
+        msg.setWindowTitle(_tr("任务完成"))
         msg.setIcon(QMessageBox.Information)
         msg.setStandardButtons(QMessageBox.Ok)
         msg.setDefaultButton(QMessageBox.Ok)
-        msg.setText(f"任务执行完成！")
+        msg.setText(_tr(f"任务执行完成！"))
         info = f"总商品数：{total}    成功：{success}    失败：{fail}"
         if fail > 0 and backend.FAIL_REASONS:
             reasons = []
@@ -850,6 +943,7 @@ class VintedScraperGUI(QMainWindow):
 
     # ---- 日志 ----
     def _add_log(self, content, level="info"):
+        content = _tr(content)
         if RELEASE_MODE:
             short = content[:60] + ("..." if len(content) > 60 else "")
             self.status_label.setText(short)

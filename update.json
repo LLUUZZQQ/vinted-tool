@@ -1,5 +1,5 @@
 {
-  "version": "1.5.1",
-  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v1.5.1/VintedTool.exe",
-  "changelog": "修复正式版窗口高度，按钮不再重叠"
+  "version": "1.6.0",
+  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v1.6.0/VintedTool.exe",
+  "changelog": "全部 UI 文案升级为专业表述，发布版界面更高级"
 }
