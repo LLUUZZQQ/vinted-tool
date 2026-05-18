@@ -1,5 +1,5 @@
 {
-  "version": "2.2.0",
-  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v2.2.0/VT_ImageMAX.exe",
-  "changelog": "智能驱动管理：自动检测 Chrome 版本并匹配 chromedriver，未装 Chrome 时友好引导"
+  "version": "2.3.0",
+  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v2.3.0/VT_ImageMAX.exe",
+  "changelog": "零依赖启动：未装 Chrome 时自动下载便携版，无需管理员权限，全程无感知"
 }

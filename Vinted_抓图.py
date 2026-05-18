@@ -471,9 +471,106 @@ def _detect_chrome_version():
     return None
 
 
+def _download_with_progress(url, dest, desc="下载中"):
+    """下载文件并通过 _on_status 报告进度"""
+    import urllib.request as _ur
+    try:
+        req = _ur.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with _ur.urlopen(req, timeout=600) as resp:
+            total = int(resp.headers.get("Content-Length", 0))
+            downloaded = 0
+            with open(dest, "wb") as f:
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total > 0:
+                        pct = downloaded * 100 // total
+                        if _on_status and pct % 20 == 0:
+                            _on_status(f"{desc} {pct}%")
+            return os.path.exists(dest)
+    except Exception as e:
+        write_log(f"下载失败: {e}", "error")
+        return False
+
+
+def _ensure_chrome():
+    """确保 Chrome 可用：检测系统 Chrome，否则自动安装便携版"""
+    # 1. 检测系统 Chrome
+    chrome_ver = _detect_chrome_version()
+    if chrome_ver:
+        return True, chrome_ver, None
+
+    # 2. 检查是否已有缓存的便携版
+    chrome_dir = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "VTMAX", "chrome")
+    chrome_exe = os.path.join(chrome_dir, "chrome.exe")
+    if os.path.exists(chrome_exe):
+        # 获取便携版版本
+        try:
+            chrome_ver = _detect_chrome_version()
+        except:
+            chrome_ver = "未知"
+        return True, chrome_ver, chrome_exe
+
+    # 3. 自动下载便携版 Chrome
+    write_log("未检测到 Chrome，正在准备运行环境...", "info")
+    if _on_status:
+        _on_status("正在准备运行环境（首次需下载浏览器，约 150MB）...")
+
+    try:
+        import urllib.request as _ur, json as _json, zipfile as _zf, io as _io
+        # 获取最新稳定版 Chrome for Testing 下载地址
+        api = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json"
+        req = _ur.Request(api, headers={"User-Agent": "Mozilla/5.0"})
+        data = _json.loads(_ur.urlopen(req, timeout=30).read())
+        chrome_url = None
+        for v in data.get("channels", {}).get("Stable", {}).get("downloads", {}).get("chrome", []):
+            if v["platform"] == "win64":
+                chrome_url = v["url"]
+                break
+        if not chrome_url:
+            write_log("无法获取 Chrome 下载地址", "error")
+            return False, None, None
+
+        # 下载
+        zip_path = os.path.join(chrome_dir, "chrome.zip")
+        os.makedirs(chrome_dir, exist_ok=True)
+        write_log("正在下载 Chrome（约 150MB，首次使用需等待）...", "info")
+        if not _download_with_progress(chrome_url, zip_path, "下载中"):
+            write_log("Chrome 下载失败，请检查网络", "error")
+            return False, None, None
+
+        # 解压
+        write_log("正在解压...", "info")
+        if _on_status:
+            _on_status("正在解压浏览器...")
+        with _zf.ZipFile(zip_path) as z:
+            # Chrome zip 内有一个子目录，需要跳过
+            root = z.namelist()[0].split("/")[0]
+            for f in z.namelist():
+                if f.endswith("/"):
+                    continue
+                dest = os.path.join(chrome_dir, f[len(root)+1:])
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                with z.open(f) as src, open(dest, "wb") as dst:
+                    dst.write(src.read())
+        os.remove(zip_path)
+
+        # 验证
+        if os.path.exists(chrome_exe):
+            write_log("Chrome 就绪", "success")
+            return True, "便携版", chrome_exe
+        write_log("Chrome 解压失败", "error")
+        return False, None, None
+    except Exception as e:
+        write_log(f"Chrome 准备失败: {e}", "error")
+        return False, None, None
+
+
 def _resolve_chromedriver():
     """获取 chromedriver 路径：优先用捆绑的，否则自动下载匹配版本"""
-    import subprocess as _sp
     # 1. 尝试捆绑的 chromedriver
     frozen_dir = getattr(sys, '_MEIPASS', None)
     if frozen_dir:
@@ -491,9 +588,7 @@ def _resolve_chromedriver():
         from webdriver_manager.core.os_manager import ChromeType
         chrome_ver = _detect_chrome_version()
         if chrome_ver:
-            write_log(f"检测到 Chrome {chrome_ver}，正在匹配驱动...", "info")
-        else:
-            write_log("未检测到 Chrome，尝试使用 webdriver-manager...", "warning")
+            write_log(f"Chrome {chrome_ver}，正在匹配驱动...", "info")
         path = ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install()
         if path and os.path.exists(path):
             write_log("驱动就绪", "success")
@@ -504,7 +599,7 @@ def _resolve_chromedriver():
     # 3. 尝试系统 PATH
     try:
         Service()
-        return None  # Service() 能从 PATH 找到
+        return None
     except:
         pass
 
@@ -515,14 +610,13 @@ def init_chrome(debug_mode):
     if _on_status:
         _on_status("正在启动浏览器")
 
-    # 检测 Chrome
-    chrome_ver = _detect_chrome_version()
-    if not chrome_ver:
-        import webbrowser
-        write_log("未检测到 Google Chrome 浏览器", "error")
+    # 确保 Chrome 可用
+    ok, chrome_ver, chrome_binary = _ensure_chrome()
+    if not ok:
         raise Exception(
-            "请先安装 Google Chrome 浏览器\n\n"
-            "下载地址：google.com/chrome"
+            "无法启动浏览器\n\n"
+            "请检查网络连接后重试\n"
+            "或手动安装 Google Chrome 浏览器"
         )
 
     # 获取 chromedriver
@@ -535,11 +629,12 @@ def init_chrome(debug_mode):
         except:
             raise Exception(
                 "无法启动浏览器驱动\n\n"
-                "请确保已安装 Google Chrome 浏览器\n"
-                "且网络连接正常以自动下载驱动"
+                "请检查网络连接后重试"
             )
 
     options = webdriver.ChromeOptions()
+    if chrome_binary:
+        options.binary_location = chrome_binary
     if not debug_mode:
         options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
