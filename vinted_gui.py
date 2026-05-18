@@ -164,7 +164,7 @@ class LocalProcessWorker(QThread):
             if not os.path.exists(p):
                 self.log_signal.emit(f"文件不存在，跳过: {os.path.basename(p)}", "warning")
                 continue
-            if be.process_image(p, skip_gps=True):
+            if be.process_image(p, skip_gps=False):
                 ok += 1
         self.finished_signal.emit(ok)
 

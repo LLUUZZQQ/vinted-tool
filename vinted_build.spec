@@ -9,6 +9,7 @@ a = Analysis(
         ('vinted_style.qss', '.'),
         ('chromedriver.exe', '.'),
         ('app_icon.ico', '.'),
+        ('用户须知.txt', '.'),
     ],
     hiddenimports=[
         'license_system', 'update_checker', 'Vinted_抓图',
