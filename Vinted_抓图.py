@@ -249,6 +249,10 @@ def process_image(image_path, skip_gps=False):
         background.paste(img, mask=img.split()[-1])
         img = background
 
+        # 边缘去白边：1px 裁剪消除仿射变换和旋转的白色残留
+        img = img.crop((1, 1, original_width - 1, original_height - 1))
+        img = img.resize((original_width, original_height), resample=Image.BICUBIC)
+
         # ---- 像素域微调（高级防检测使用空间相关噪声模拟传感器） ----
         img_array = np.array(img, dtype=np.int16)
         if ADVANCED_ANTI_DETECT_ENABLED:

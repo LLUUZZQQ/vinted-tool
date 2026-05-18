@@ -1,5 +1,5 @@
 {
-  "version": "2.0.0",
-  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v2.0.0/VT_ImageMAX.exe",
-  "changelog": "VT图像重构MAX 全新品牌升级，圆角图标，专业文案"
+  "version": "2.0.1",
+  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v2.0.1/VT_ImageMAX.exe",
+  "changelog": "修复图片处理后四周出现白色边缘的问题"
 }
