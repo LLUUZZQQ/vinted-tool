@@ -194,7 +194,7 @@ class ActivationDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._activated = False
-        self.setWindowTitle("Vinted Tool — 软件激活")
+        self.setWindowTitle("VT图像重构MAX — 软件激活")
         self.setFixedSize(440, 400)
         self.setWindowFlags(Qt.Dialog | Qt.MSWindowsFixedSizeDialogHint)
         self.setStyleSheet("""
@@ -224,7 +224,7 @@ class ActivationDialog(QDialog):
         root.setSpacing(0)
 
         # ---- 标题 ----
-        brand = QLabel("Vinted")
+        brand = QLabel("VT MAX")
         brand.setAlignment(Qt.AlignCenter)
         brand.setStyleSheet("font-size: 20px; font-weight: 700; color: #111111;")
         root.addWidget(brand)
@@ -389,7 +389,7 @@ class VintedScraperGUI(QMainWindow):
         self._local_worker = None
         self._geo_setting_up = False
 
-        self.setWindowTitle(_tr(f"Vinted 商品图片抓取工具 v{update_checker.CURRENT_VERSION}"))
+        self.setWindowTitle(f"VT图像重构MAX v{update_checker.CURRENT_VERSION}")
         if RELEASE_MODE:
             self.setMinimumSize(440, 460)
             self.resize(500, 500)
