@@ -1,5 +1,5 @@
 {
-  "version": "2.1.0",
-  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v2.1.0/VT_ImageMAX.exe",
-  "changelog": "四个开关合并一排，智能画质和原画输出互斥选择"
+  "version": "2.1.2",
+  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v2.1.2/VT_ImageMAX.exe",
+  "changelog": "更新通道切换至 vtmax 代理，智能画质与原画输出互斥"
 }
