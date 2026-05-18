@@ -30,7 +30,7 @@ desktop.ini
 # 临时/测试文件
 *.jpg
 *.jpeg
-*.png
 *.gif
 *.bmp
 .claude/
+.wrangler/
