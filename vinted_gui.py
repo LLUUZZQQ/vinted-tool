@@ -298,8 +298,8 @@ class VintedScraperGUI(QMainWindow):
 
         self.setWindowTitle(f"Vinted 商品图片抓取工具 v{update_checker.CURRENT_VERSION}")
         if RELEASE_MODE:
-            self.setMinimumSize(440, 400)
-            self.resize(500, 440)
+            self.setMinimumSize(440, 460)
+            self.resize(500, 500)
         else:
             self.setMinimumSize(440, 600)
             self.resize(500, 650)
