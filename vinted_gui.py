@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 
 # ====================== 拖拽文本框 ======================

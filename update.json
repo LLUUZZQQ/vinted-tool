@@ -1,5 +1,5 @@
 {
-  "version": "1.4.0",
-  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v1.4.0/VintedTool.exe",
-  "changelog": "新功能：链接格式校验、记住上次链接、失败原因显示、发布模式开关、仓库清理"
+  "version": "1.5.0",
+  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v1.5.0/VintedTool.exe",
+  "changelog": "正式发布版：精简界面（无日志面板）、应用图标、使用说明"
 }

@@ -8,6 +8,7 @@ a = Analysis(
     datas=[
         ('vinted_style.qss', '.'),
         ('chromedriver.exe', '.'),
+        ('app_icon.ico', '.'),
     ],
     hiddenimports=[
         'license_system', 'update_checker', 'Vinted_抓图',
@@ -53,5 +54,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,
+    icon='app_icon.ico',
 )
