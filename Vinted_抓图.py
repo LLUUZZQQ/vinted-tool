@@ -860,6 +860,21 @@ def scrape_vinted_by_browser(url, save_folder, debug_mode, driver=None, wait_tim
         return False
 
 
+def _cleanup_old_logs(save_root, days=3):
+    """清理超过指定天数的 Process_Log 文件"""
+    import time as _t
+    try:
+        now = _t.time()
+        cutoff = now - days * 86400
+        for f in os.listdir(save_root):
+            if f.startswith("Process_Log") and f.endswith(".txt"):
+                fp = os.path.join(save_root, f)
+                if os.path.getmtime(fp) < cutoff:
+                    os.remove(fp)
+    except:
+        pass
+
+
 def start_crawl_task(urls_text, debug_mode, wait_time=0):
     global STOP_TASK, LOG_FILE, CUSTOM_SAVE_ROOT, TOTAL_TASKS, CURRENT_TASK, SUCCESS_COUNT, FAIL_COUNT, FAILED_URLS
     import time as _time
@@ -882,6 +897,7 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
     save_root = CUSTOM_SAVE_ROOT.strip() or DEFAULT_SAVE_ROOT
     if not os.path.exists(save_root):
         os.makedirs(save_root)
+    _cleanup_old_logs(save_root, days=3)
     LOG_FILE = os.path.join(save_root, "Process_Log.txt")
     with open(LOG_FILE, "w", encoding="utf-8") as f:
         f.write("")
