@@ -25,6 +25,8 @@ a = Analysis(
         'win32api', 'win32con', 'win32com', 'win32com.client',
         'requests', 'urllib3',
         'configparser', 'shutil', 'hashlib', 'string', 'threading',
+        'urllib.request', 'urllib.error', 'urllib.parse',
+        'json', 'zipfile', 'io', 'winreg',
     ],
     hookspath=[],
     hooksconfig={},

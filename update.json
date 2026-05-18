@@ -1,5 +1,5 @@
 {
-  "version": "2.3.0",
-  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v2.3.0/VT_ImageMAX.exe",
-  "changelog": "零依赖启动：未装 Chrome 时自动下载便携版，无需管理员权限，全程无感知"
+  "version": "2.3.1",
+  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v2.3.1/VT_ImageMAX.exe",
+  "changelog": "修复 WebDriverManager 参数兼容性问题，补充缺失模块"
 }

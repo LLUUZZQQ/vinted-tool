@@ -585,11 +585,7 @@ def _resolve_chromedriver():
     # 2. 自动下载匹配版本
     try:
         from webdriver_manager.chrome import ChromeDriverManager
-        from webdriver_manager.core.os_manager import ChromeType
-        chrome_ver = _detect_chrome_version()
-        if chrome_ver:
-            write_log(f"Chrome {chrome_ver}，正在匹配驱动...", "info")
-        path = ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install()
+        path = ChromeDriverManager().install()
         if path and os.path.exists(path):
             write_log("驱动就绪", "success")
             return path
