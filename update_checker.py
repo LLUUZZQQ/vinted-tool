@@ -13,10 +13,10 @@ import subprocess
 
 # 更新检查 URL（替换为你实际的文件地址）
 # 该 URL 应返回 JSON：{"version": "2.0.0", "download_url": "...", "changelog": "..."}
-UPDATE_URL = "https://vt-proxy.lzq13328903829.workers.dev/update.json"
+UPDATE_URL = "https://vt-proxy.vtmax.workers.dev/update.json"
 
 # 当前版本
-CURRENT_VERSION = "2.1.1"
+CURRENT_VERSION = "2.1.2"
 
 
 def _fetch_json(url, timeout=10):
