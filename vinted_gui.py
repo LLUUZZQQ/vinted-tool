@@ -571,30 +571,24 @@ class VintedScraperGUI(QMainWindow):
 
         # 行 3：复选框 + 恢复按钮
         r3 = QHBoxLayout()
-        r3.setSpacing(12)
+        r3.setSpacing(10)
         self.chk_compress = QCheckBox(_tr("智能压缩"))
-        self.chk_compress.setToolTip("智能压缩图片，肉眼无感知")
+        self.chk_compress.setToolTip("智能画质优化，适度降低文件大小")
         r3.addWidget(self.chk_compress)
+        self.chk_lossless = QCheckBox(_tr("无损画质"))
+        self.chk_lossless.setToolTip("原画输出，quality=100")
+        r3.addWidget(self.chk_lossless)
         self.chk_watermark = QCheckBox(_tr("隐形水印"))
-        self.chk_watermark.setToolTip("添加隐形防重水印")
+        self.chk_watermark.setToolTip("添加防重数字水印")
         r3.addWidget(self.chk_watermark)
+        self.chk_advanced_anti_detect = QCheckBox(_tr("高级防检测"))
+        self.chk_advanced_anti_detect.setToolTip("AI 防护引擎")
+        r3.addWidget(self.chk_advanced_anti_detect)
         r3.addStretch()
         self.btn_reset = QPushButton(_tr("恢复默认"))
         self.btn_reset.setObjectName("btnSecondary")
         r3.addWidget(self.btn_reset)
         lo.addLayout(r3)
-
-        # 行 3b：高级复选框
-        r3b = QHBoxLayout()
-        r3b.setSpacing(12)
-        self.chk_lossless = QCheckBox(_tr("无损画质"))
-        self.chk_lossless.setToolTip("quality=100，防重效果减弱")
-        r3b.addWidget(self.chk_lossless)
-        self.chk_advanced_anti_detect = QCheckBox(_tr("高级防检测"))
-        self.chk_advanced_anti_detect.setToolTip("JPEG块破坏+传感器噪声模拟+空间亮度渐变+EXIF增强")
-        r3b.addWidget(self.chk_advanced_anti_detect)
-        r3b.addStretch()
-        lo.addLayout(r3b)
 
         parent.addWidget(g)
 
@@ -822,6 +816,8 @@ class VintedScraperGUI(QMainWindow):
     def _on_compress_toggled(self, v):
         self._compress = v
         backend.COMPRESS_ENABLED = v
+        if v:
+            self.chk_lossless.setChecked(False)
         self._save_config()
 
     def _on_watermark_toggled(self, v):
@@ -832,6 +828,8 @@ class VintedScraperGUI(QMainWindow):
     def _on_lossless_toggled(self, v):
         self._lossless = v
         backend.LOSSLESS_ENABLED = v
+        if v:
+            self.chk_compress.setChecked(False)
         self._save_config()
 
     def _on_advanced_anti_detect_toggled(self, v):
