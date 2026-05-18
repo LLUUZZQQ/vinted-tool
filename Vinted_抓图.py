@@ -446,9 +446,95 @@ def process_image(image_path, skip_gps=False):
         return False
 
 
+def _ensure_chrome():
+    """确保 Chrome 可用。返回 (chrome_binary_path 或 None)"""
+    import zipfile, io as _io
+    # 1. 系统已安装 → 直接用
+    try:
+        out = subprocess.run(
+            ['reg', 'query', r'HKEY_CURRENT_USER\Software\Google\Chrome\BLBeacon', '/v', 'version'],
+            capture_output=True, text=True, timeout=5
+        )
+        if 'version' in out.stdout:
+            return None
+    except:
+        pass
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"SOFTWARE\Google\Chrome\BLBeacon") as k:
+            winreg.QueryValueEx(k, "version")
+            return None
+    except:
+        pass
+
+    # 2. 已有缓存的便携版
+    chrome_dir = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "VTMAX", "chrome")
+    chrome_exe = os.path.join(chrome_dir, "chrome.exe")
+    if os.path.exists(chrome_exe):
+        return chrome_exe
+
+    # 3. 自动下载便携版
+    write_log("正在准备运行环境（首次使用需下载浏览器）...", "info")
+    if _on_status:
+        _on_status("正在准备运行环境...")
+    try:
+        os.makedirs(chrome_dir, exist_ok=True)
+        # 获取下载地址
+        api = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json"
+        resp = requests.get(api, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+        data = resp.json()
+        for ch in data.get("channels", {}).get("Stable", {}).get("downloads", {}).get("chrome", []):
+            if ch["platform"] == "win64":
+                chrome_url = ch["url"]
+                break
+        else:
+            raise Exception("无法获取下载地址")
+        # 下载
+        write_log("正在下载浏览器（约 150MB，仅首次）...", "info")
+        zip_path = os.path.join(chrome_dir, "chrome.zip")
+        r = requests.get(chrome_url, headers={"User-Agent": "Mozilla/5.0"}, stream=True, timeout=600)
+        total = int(r.headers.get("Content-Length", 0))
+        downloaded = 0
+        with open(zip_path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=65536):
+                f.write(chunk)
+                downloaded += len(chunk)
+                if total > 0 and _on_status:
+                    pct = downloaded * 100 // total
+                    if pct % 25 == 0:
+                        _on_status(f"正在准备运行环境 {pct}%...")
+        # 解压
+        write_log("正在解压...", "info")
+        if _on_status:
+            _on_status("正在解压浏览器...")
+        with zipfile.ZipFile(zip_path) as z:
+            root = z.namelist()[0].split("/")[0]
+            for name in z.namelist():
+                if name.endswith("/"):
+                    continue
+                dest = os.path.join(chrome_dir, name[len(root)+1:])
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                with z.open(name) as src, open(dest, "wb") as dst:
+                    dst.write(src.read())
+        os.remove(zip_path)
+        if os.path.exists(chrome_exe):
+            write_log("浏览器就绪", "success")
+            return chrome_exe
+        raise Exception("解压后未找到 chrome.exe")
+    except Exception as e:
+        write_log(f"环境准备失败: {e}", "error")
+        raise Exception(
+            "运行环境准备失败，请检查网络连接\n\n"
+            "或手动安装 Google Chrome 浏览器后重试"
+        )
+
+
 def init_chrome(debug_mode):
     if _on_status:
         _on_status("正在启动浏览器")
+
+    # 确保 Chrome 可用（无 Chrome 则自动下载便携版）
+    chrome_binary = _ensure_chrome()
 
     # 获取 chromedriver 路径
     frozen_dir = getattr(sys, '_MEIPASS', None)
@@ -478,12 +564,11 @@ def init_chrome(debug_mode):
         try:
             service = Service()
         except:
-            raise Exception(
-                "Chromedriver 未找到\n\n"
-                "请确保已安装 Google Chrome 浏览器"
-            )
+            raise Exception("Chromedriver 未找到")
 
     options = webdriver.ChromeOptions()
+    if chrome_binary:
+        options.binary_location = chrome_binary
     if not debug_mode:
         options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")

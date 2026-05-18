@@ -1,5 +1,5 @@
 {
-  "version": "2.4.0",
-  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v2.4.0/VT_ImageMAX.exe",
-  "changelog": "回退到捆绑 chromedriver 方案，最稳定可靠"
+  "version": "2.5.0",
+  "download_url": "https://github.com/LLUUZZQQ/vinted-tool/releases/download/v2.5.0/VT_ImageMAX.exe",
+  "changelog": "方案C：未装Chrome时自动下载便携版，零依赖零操作，无管理员权限要求"
 }
