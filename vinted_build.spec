@@ -7,12 +7,11 @@ a = Analysis(
     binaries=[],
     datas=[
         ('vinted_style.qss', '.'),
-        ('chromedriver.exe', '.'),
         ('app_icon.ico', '.'),
     ],
     hiddenimports=[
         'license_system', 'update_checker', 'Vinted_抓图',
-        'cryptography',
+        'cryptography', 'webdriver_manager',
         'piexif', 'numpy',
         'PIL', 'PIL.Image', 'PIL.ImageEnhance', 'PIL.ImageFilter',
         'PIL.ImageDraw', 'PIL.ImageFont',

@@ -446,43 +446,98 @@ def process_image(image_path, skip_gps=False):
         return False
 
 
-def _get_chromedriver_path():
-    """获取 chromedriver.exe 路径（支持 PyInstaller 打包）"""
-    # PyInstaller 打包后：sys._MEIPASS 是临时解压目录
+def _detect_chrome_version():
+    """检测 Chrome 是否安装，返回版本号或 None"""
+    try:
+        import winreg
+        for key in [r"SOFTWARE\Google\Chrome\BLBeacon", r"SOFTWARE\Wow6432Node\Google\Chrome\BLBeacon"]:
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key) as k:
+                    return winreg.QueryValueEx(k, "version")[0]
+            except:
+                pass
+    except:
+        pass
+    try:
+        out = subprocess.run(
+            ['reg', 'query', r'HKEY_CURRENT_USER\Software\Google\Chrome\BLBeacon', '/v', 'version'],
+            capture_output=True, text=True, timeout=5
+        )
+        for line in out.stdout.split('\n'):
+            if 'version' in line:
+                return line.strip().split()[-1]
+    except:
+        pass
+    return None
+
+
+def _resolve_chromedriver():
+    """获取 chromedriver 路径：优先用捆绑的，否则自动下载匹配版本"""
+    import subprocess as _sp
+    # 1. 尝试捆绑的 chromedriver
     frozen_dir = getattr(sys, '_MEIPASS', None)
     if frozen_dir:
         bundled = os.path.join(frozen_dir, 'chromedriver.exe')
-        exe_dir = os.path.dirname(sys.executable)
-        target = os.path.join(exe_dir, 'chromedriver.exe')
-        if not os.path.exists(target) and os.path.exists(bundled):
-            try:
-                shutil.copy2(bundled, target)
-            except Exception as e:
-                write_log(f"chromedriver 提取失败: {e}", "warning")
-        if os.path.exists(target):
-            return target
-        # fallback: try bundled directly
         if os.path.exists(bundled):
             return bundled
-    # 开发模式：脚本同目录
     script_dir = os.path.dirname(os.path.abspath(__file__))
     local = os.path.join(script_dir, 'chromedriver.exe')
     if os.path.exists(local):
         return local
+
+    # 2. 自动下载匹配版本
+    try:
+        from webdriver_manager.chrome import ChromeDriverManager
+        from webdriver_manager.core.os_manager import ChromeType
+        chrome_ver = _detect_chrome_version()
+        if chrome_ver:
+            write_log(f"检测到 Chrome {chrome_ver}，正在匹配驱动...", "info")
+        else:
+            write_log("未检测到 Chrome，尝试使用 webdriver-manager...", "warning")
+        path = ChromeDriverManager(chrome_type=ChromeType.GOOGLE).install()
+        if path and os.path.exists(path):
+            write_log("驱动就绪", "success")
+            return path
+    except Exception as e:
+        write_log(f"自动下载驱动失败: {e}", "warning")
+
+    # 3. 尝试系统 PATH
+    try:
+        Service()
+        return None  # Service() 能从 PATH 找到
+    except:
+        pass
+
     return None
 
 
 def init_chrome(debug_mode):
     if _on_status:
         _on_status("正在启动浏览器")
-    driver_path = _get_chromedriver_path()
+
+    # 检测 Chrome
+    chrome_ver = _detect_chrome_version()
+    if not chrome_ver:
+        import webbrowser
+        write_log("未检测到 Google Chrome 浏览器", "error")
+        raise Exception(
+            "请先安装 Google Chrome 浏览器\n\n"
+            "下载地址：google.com/chrome"
+        )
+
+    # 获取 chromedriver
+    driver_path = _resolve_chromedriver()
     if driver_path:
         service = Service(executable_path=driver_path)
     else:
         try:
             service = Service()
         except:
-            raise Exception("未找到 chromedriver.exe，请将其放到软件同目录！")
+            raise Exception(
+                "无法启动浏览器驱动\n\n"
+                "请确保已安装 Google Chrome 浏览器\n"
+                "且网络连接正常以自动下载驱动"
+            )
 
     options = webdriver.ChromeOptions()
     if not debug_mode:
