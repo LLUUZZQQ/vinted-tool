@@ -926,24 +926,12 @@ class VintedScraperGUI(QMainWindow):
         self._set_ui_running(True)
         self.status_label.setText(_tr("状态：正在启动任务"))
 
+        self.status_label.setText("处理中…")
         self._worker = CrawlWorker(text, False)
         self._worker.log_signal.connect(self._add_log)
-        self._pipeline_index = 0
-        self._pipeline_msgs = [
-            "正在初始化渲染引擎...",
-            "正在建立安全会话...",
-            "正在解析页面结构...",
-            "正在提取图像索引...",
-            "正在重建数字指纹...",
-            "正在嵌入时空元数据...",
-            "正在优化画质参数...",
-        ]
-        self._pipeline_timer = QTimer(self)
-        self._pipeline_timer.timeout.connect(self._rotate_pipeline)
-        self._worker.status_signal.connect(lambda s: self._on_status_update(s))
+        self._worker.status_signal.connect(lambda s: self.status_label.setText("处理中…"))
         self._worker.progress_signal.connect(self._on_progress)
         self._worker.finished_signal.connect(self._on_task_finished)
-        self._pipeline_timer.start(1200)
         self._worker.start()
 
     def _stop_crawl(self):
@@ -952,15 +940,6 @@ class VintedScraperGUI(QMainWindow):
         self.btn_stop.setEnabled(False)
         self._add_log("⚠️ 正在停止任务，请稍候...", "warning")
 
-    def _on_status_update(self, s):
-        self.status_label.setText(_tr(f"状态：{s}"))
-        self._pipeline_index = 0  # 真实消息来了重置轮播
-
-    def _rotate_pipeline(self):
-        msg = self._pipeline_msgs[self._pipeline_index]
-        self.status_label.setText(msg)
-        self._pipeline_index = (self._pipeline_index + 1) % len(self._pipeline_msgs)
-
     def _on_progress(self, current, total, success, fail):
         if total > 0:
             self.progress_bar.setMaximum(total)
@@ -968,10 +947,9 @@ class VintedScraperGUI(QMainWindow):
         self.stat_label.setText(_tr(f"成功：{success} | 失败：{fail}"))
 
     def _on_task_finished(self, stopped):
-        self._pipeline_timer.stop()
         self._set_ui_running(False)
         self._worker = None
-        self.status_label.setText(_tr("状态：已停止") if stopped else "状态：已完成")
+        self.status_label.setText(_tr("状态：已停止") if stopped else "处理完成")
         if not stopped:
             self._total_tasks += backend.TOTAL_TASKS
             self._total_images += backend.TOTAL_IMAGES
