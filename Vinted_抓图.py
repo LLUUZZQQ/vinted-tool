@@ -590,12 +590,19 @@ def init_chrome(debug_mode):
     try:
         driver = webdriver.Chrome(service=service, options=options)
     except Exception as e:
-        if 'This version of ChromeDriver only supports' in str(e):
-            write_log("驱动版本不匹配，自动下载兼容版本...", "warning")
-            from webdriver_manager.chrome import ChromeDriverManager
-            new_path = ChromeDriverManager().install()
-            service = Service(executable_path=new_path)
-            driver = webdriver.Chrome(service=service, options=options)
+        err = str(e)
+        if 'version' in err.lower() or '193' in err or 'Win32' in err or 'not a valid' in err.lower():
+            write_log(f"驱动异常，自动修复...", "warning")
+            try:
+                from webdriver_manager.chrome import ChromeDriverManager
+                new_path = ChromeDriverManager().install()
+                if new_path and os.path.exists(new_path):
+                    service = Service(executable_path=new_path)
+                    driver = webdriver.Chrome(service=service, options=options)
+                else:
+                    raise
+            except:
+                raise
         else:
             raise
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
