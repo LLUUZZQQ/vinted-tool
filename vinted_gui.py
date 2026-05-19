@@ -1030,9 +1030,7 @@ class VintedScraperGUI(QMainWindow):
     def _add_log(self, content, level="info"):
         content = _tr(content)
         if RELEASE_MODE:
-            short = content[:60] + ("..." if len(content) > 60 else "")
-            self.status_label.setText(short)
-            return
+            return  # 静默模式不显示日志
         colors = {"success": "#10b981", "warning": "#f59e0b", "error": "#ef4444", "info": "#374151"}
         c = colors.get(level, "#374151")
         self.log_view.appendHtml(f'<span style="color:{c};white-space:pre;">{content.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")}</span>')
