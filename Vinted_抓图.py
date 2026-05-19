@@ -541,9 +541,16 @@ def init_chrome(debug_mode):
     # 1. webdriver-manager 自动下载匹配版本（最可靠）
     try:
         from webdriver_manager.chrome import ChromeDriverManager
-        new_path = ChromeDriverManager().install()
-        if new_path and os.path.exists(new_path):
-            driver_path = new_path
+        raw = ChromeDriverManager().install()
+        if raw and os.path.exists(raw):
+            if raw.endswith('.exe'):
+                driver_path = raw
+            else:
+                # 某些版本返回声明文件路径，修正到同目录 chromedriver.exe
+                d = os.path.dirname(raw)
+                exe = os.path.join(d, 'chromedriver.exe')
+                if os.path.exists(exe):
+                    driver_path = exe
     except:
         pass
     # 2. 捆绑的 chromedriver
