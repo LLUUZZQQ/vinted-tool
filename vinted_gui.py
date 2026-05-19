@@ -529,6 +529,12 @@ class VintedScraperGUI(QMainWindow):
         self.btn_update.setCursor(Qt.PointingHandCursor)
         self.btn_update.setStyleSheet("QPushButton { font-size: 11px; color: #b0b0b0; border: none; background: transparent; } QPushButton:hover { color: #111111; }")
         self.btn_update.clicked.connect(self._check_for_updates)
+        self.btn_help = QPushButton("使用说明")
+        self.btn_help.setFlat(True)
+        self.btn_help.setCursor(Qt.PointingHandCursor)
+        self.btn_help.setStyleSheet("QPushButton { font-size: 11px; color: #b0b0b0; border: none; background: transparent; } QPushButton:hover { color: #111111; }")
+        self.btn_help.clicked.connect(self._show_help)
+        top.addWidget(self.btn_help)
         top.addWidget(self.btn_update)
         self.url_count_label = QLabel(_tr("有效链接：0"))
         self.url_count_label.setObjectName("urlCountLabel")
@@ -1107,6 +1113,43 @@ class VintedScraperGUI(QMainWindow):
         self.progress_bar.setMaximum(100)
         self.progress_bar.setValue(0)
         self._add_log(f"✅ 本地防重完成，成功 {ok} 张", "success")
+
+    def _show_help(self):
+        import os as _os
+        # 尝试读取用户须知文件
+        paths = [
+            _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "用户须知.txt"),
+            _os.path.join(_os.path.dirname(sys.executable), "用户须知.txt"),
+            _os.path.join(getattr(sys, '_MEIPASS', ''), "用户须知.txt"),
+        ]
+        text = ""
+        for p in paths:
+            if _os.path.exists(p):
+                with open(p, "r", encoding="utf-8") as f:
+                    text = f.read()
+                break
+        if not text:
+            text = "用户须知文件未找到，请联系管理员。"
+        dlg = QDialog(self)
+        dlg.setWindowTitle("使用说明")
+        dlg.setMinimumSize(480, 500)
+        dlg.resize(520, 560)
+        layout = QVBoxLayout(dlg)
+        layout.setContentsMargins(16, 12, 16, 12)
+        view = QPlainTextEdit()
+        view.setReadOnly(True)
+        view.setPlainText(text)
+        view.setStyleSheet("""
+            QPlainTextEdit { font-family: 'Microsoft YaHei', sans-serif; font-size: 13px;
+            background: #ffffff; border: 1px solid #e5e7eb; border-radius: 6px;
+            padding: 8px; color: #374151; }
+        """)
+        layout.addWidget(view)
+        btn = QPushButton("关闭")
+        btn.setStyleSheet("QPushButton { padding: 6px 20px; }")
+        btn.clicked.connect(dlg.accept)
+        layout.addWidget(btn, 0, Qt.AlignCenter)
+        dlg.exec()
 
     def _auto_check_update(self):
         """启动时静默检查更新"""
