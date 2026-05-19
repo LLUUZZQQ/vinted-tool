@@ -391,7 +391,8 @@ class VintedScraperGUI(QMainWindow):
 
         self.setWindowTitle(f"VT图像重构MAX v{update_checker.CURRENT_VERSION}")
         if RELEASE_MODE:
-            self.setMinimumSize(440, 460)
+            self.setMinimumSize(440, 500)
+            self.setMaximumHeight(500)
             self.resize(500, 500)
         else:
             self.setMinimumSize(440, 600)
@@ -487,8 +488,6 @@ class VintedScraperGUI(QMainWindow):
         self._build_task_section(root)
         if not RELEASE_MODE:
             self._build_log_section(root)
-        else:
-            root.addStretch()
 
     # ---- 模块 1：商品链接管理 ----
     def _build_url_section(self, parent):
