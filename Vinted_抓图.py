@@ -474,9 +474,9 @@ def _ensure_chrome():
         return chrome_exe
 
     # 3. 自动下载便携版
-    write_log("正在准备运行环境（首次使用需下载浏览器）...", "info")
+    write_log("首次使用需下载运行环境（约 180MB，仅此一次，请耐心等待）...", "info")
     if _on_status:
-        _on_status("正在准备运行环境...")
+        _on_status("首次使用，正在准备运行环境...")
     try:
         os.makedirs(chrome_dir, exist_ok=True)
         # 获取下载地址
@@ -490,7 +490,6 @@ def _ensure_chrome():
         else:
             raise Exception("无法获取下载地址")
         # 下载
-        write_log("正在下载浏览器（约 150MB，仅首次）...", "info")
         zip_path = os.path.join(chrome_dir, "chrome.zip")
         r = requests.get(chrome_url, headers={"User-Agent": "Mozilla/5.0"}, stream=True, timeout=600)
         total = int(r.headers.get("Content-Length", 0))
@@ -501,12 +500,14 @@ def _ensure_chrome():
                 downloaded += len(chunk)
                 if total > 0 and _on_status:
                     pct = downloaded * 100 // total
-                    if pct % 25 == 0:
-                        _on_status(f"正在准备运行环境 {pct}%...")
+                    mb = downloaded // (1024*1024)
+                    total_mb = total // (1024*1024)
+                    if pct == 0 or pct == 100 or pct % 10 == 0:
+                        _on_status(f"正在准备运行环境 {mb}/{total_mb}MB ({pct}%)")
         # 解压
-        write_log("正在解压...", "info")
+        write_log("正在安装运行环境...", "info")
         if _on_status:
-            _on_status("正在解压浏览器...")
+            _on_status("正在安装运行环境...")
         with zipfile.ZipFile(zip_path) as z:
             root = z.namelist()[0].split("/")[0]
             for name in z.namelist():
@@ -518,7 +519,7 @@ def _ensure_chrome():
                     dst.write(src.read())
         os.remove(zip_path)
         if os.path.exists(chrome_exe):
-            write_log("浏览器就绪", "success")
+            write_log("运行环境就绪，下次启动无需等待", "success")
             return chrome_exe
         raise Exception("解压后未找到 chrome.exe")
     except Exception as e:
