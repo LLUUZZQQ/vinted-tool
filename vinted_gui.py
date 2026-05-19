@@ -924,8 +924,6 @@ class VintedScraperGUI(QMainWindow):
         self._save_config()
 
         self._set_ui_running(True)
-        self.status_label.setText(_tr("状态：正在启动任务"))
-
         self.status_label.setText("处理中…")
         self._worker = CrawlWorker(text, False)
         self._worker.log_signal.connect(self._add_log)
