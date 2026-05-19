@@ -46,8 +46,8 @@ _RELEASE_DICT = {
     "智能压缩": "智能画质",
     "隐形水印": "数字水印",
     "无损画质": "原画输出",
-    "高级防检测": "AI 防护",
-    "机模画幅匹配": "机模画幅匹配",
+    "高级防检测": "AI指纹重构",
+    "机模画幅匹配": "机型自定义",
     # 按钮
     "开始抓取": "开始采集",
     "停止任务": "终止",
@@ -404,9 +404,9 @@ class VintedScraperGUI(QMainWindow):
 
         self.setWindowTitle(f"VT图像重构MAX v{update_checker.CURRENT_VERSION} · 已就绪")
         if RELEASE_MODE:
-            self.setMinimumSize(440, 500)
-            self.setMaximumHeight(500)
-            self.resize(500, 500)
+            self.setMinimumSize(440, 530)
+            self.setMaximumHeight(530)
+            self.resize(500, 530)
         else:
             self.setMinimumSize(440, 600)
             self.resize(500, 650)
@@ -983,13 +983,13 @@ class VintedScraperGUI(QMainWindow):
         # 处理清单
         features = []
         if backend.ADVANCED_ANTI_DETECT_ENABLED:
-            features.append("  ✓  AI 深度重构引擎")
+            features.append("  ✓  AI指纹重构引擎")
             features.append("  ✓  色温映射 & 曝光补偿")
             features.append("  ✓  JPEG 指纹重建")
         if backend.WATERMARK_ENABLED:
             features.append("  ✓  数字指纹水印")
         if backend.DEVICE_CROP_ENABLED:
-            features.append("  ✓  机模画幅匹配")
+            features.append("  ✓  机型自定义")
         features.append("  ✓  时空元数据注入")
         feature_text = "\n".join(features) if features else ""
 
