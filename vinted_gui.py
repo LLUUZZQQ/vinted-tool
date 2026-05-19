@@ -487,6 +487,8 @@ class VintedScraperGUI(QMainWindow):
         self._build_task_section(root)
         if not RELEASE_MODE:
             self._build_log_section(root)
+        else:
+            root.addStretch()
 
     # ---- 模块 1：商品链接管理 ----
     def _build_url_section(self, parent):
@@ -1154,7 +1156,7 @@ def main():
 def _check_tamper(window):
     """检查运行时是否检测到篡改"""
     if license_mgr.is_tampered():
-        QMessageBox.critical(window, "授权失效", "授权验证失败，软件将退出。")
+        QMessageBox.critical(window, "授权到期", "授权有效期已过，软件需要重启。\n请联系管理员续期。")
         sys.exit(1)
 
 

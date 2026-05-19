@@ -192,7 +192,7 @@ def check_license():
             expire_time = _time.mktime(_time.strptime(expires, "%Y-%m-%d"))
             now = _time.time()
             if now > expire_time:
-                return False, f"授权已过期（{expires}）", 0
+                return False, f"授权已于 {expires} 到期，请联系管理员续期", 0
             remaining = int((expire_time - now) / 86400) + 1
         except Exception:
             remaining = None
