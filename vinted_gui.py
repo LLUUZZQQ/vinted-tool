@@ -14,7 +14,8 @@ from PySide6.QtWidgets import (
     QMessageBox, QDialog, QFrame,
 )
 from PySide6.QtCore import Qt, Signal, QThread, QTimer, QMimeData
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QPixmap
+from PySide6.QtWidgets import QSplashScreen
 import Vinted_抓图 as backend
 import license_system as license_mgr
 import update_checker
@@ -46,6 +47,7 @@ _RELEASE_DICT = {
     "隐形水印": "数字水印",
     "无损画质": "原画输出",
     "高级防检测": "AI 防护",
+    "机模画幅匹配": "机模画幅匹配",
     # 按钮
     "开始抓取": "开始采集",
     "停止任务": "终止",
@@ -232,7 +234,18 @@ class ActivationDialog(QDialog):
         sub.setAlignment(Qt.AlignCenter)
         sub.setStyleSheet("font-size: 12px; color: #9ca3af;")
         root.addWidget(sub)
-        root.addSpacing(16)
+        root.addSpacing(8)
+        # 技术标签
+        tech_row = QHBoxLayout()
+        tech_row.setSpacing(4)
+        for t in ["AI 深度重构", "JPEG 指纹重建", "时空元数据", "画幅智能匹配"]:
+            l = QLabel(t)
+            l.setAlignment(Qt.AlignCenter)
+            l.setStyleSheet("font-size: 9px; color: #999; background: transparent; border: 1px solid #e0e0e0; border-radius: 3px; padding: 1px 6px;")
+            tech_row.addWidget(l)
+        tech_row.addStretch()
+        root.addLayout(tech_row)
+        root.addSpacing(10)
 
         # ---- 步骤 1 ----
         s1h = QHBoxLayout(); s1h.setSpacing(6)
@@ -389,7 +402,7 @@ class VintedScraperGUI(QMainWindow):
         self._local_worker = None
         self._geo_setting_up = False
 
-        self.setWindowTitle(f"VT图像重构MAX v{update_checker.CURRENT_VERSION}")
+        self.setWindowTitle(f"VT图像重构MAX v{update_checker.CURRENT_VERSION} · 已就绪")
         if RELEASE_MODE:
             self.setMinimumSize(440, 500)
             self.setMaximumHeight(500)
@@ -428,12 +441,20 @@ class VintedScraperGUI(QMainWindow):
         self._watermark = cfg.get("watermark_enabled", "False") == "True"
         self._lossless = cfg.get("lossless_enabled", "False") == "True"
         self._advanced_anti_detect = cfg.get("advanced_anti_detect", "False") == "True"
+        self._device_crop = cfg.get("device_crop", "False") == "True"
+        self._device_model = cfg.get("device_model", "随机")
 
         backend.CUSTOM_SAVE_ROOT = self._save_path
         backend.COMPRESS_ENABLED = self._compress
         backend.WATERMARK_ENABLED = self._watermark
         backend.LOSSLESS_ENABLED = self._lossless
         backend.ADVANCED_ANTI_DETECT_ENABLED = self._advanced_anti_detect
+        backend.DEVICE_CROP_ENABLED = self._device_crop
+        backend.SELECTED_DEVICE = self._device_model
+
+        # 累计统计
+        self._total_images = int(cfg.get("total_images", "0"))
+        self._total_tasks = int(cfg.get("total_tasks", "0"))
         backend.set_geo(self._country, self._city, self._mode)
 
         geo = cfg.get("window_geometry", "")
@@ -467,6 +488,10 @@ class VintedScraperGUI(QMainWindow):
             "watermark_enabled": str(self._watermark),
             "lossless_enabled": str(self._lossless),
             "advanced_anti_detect": str(self._advanced_anti_detect),
+            "device_crop": str(self._device_crop),
+            "device_model": self._device_model,
+            "total_images": str(self._total_images),
+            "total_tasks": str(self._total_tasks),
         })
 
     def _load_stylesheet(self):
@@ -570,7 +595,7 @@ class VintedScraperGUI(QMainWindow):
         r2.addWidget(self.combo_mode, 1)
         lo.addLayout(r2)
 
-        # 行 3：复选框 + 恢复按钮
+        # 行 3：复选框行1
         r3 = QHBoxLayout()
         r3.setSpacing(10)
         self.chk_compress = QCheckBox(_tr("智能压缩"))
@@ -591,6 +616,21 @@ class VintedScraperGUI(QMainWindow):
         r3.addWidget(self.btn_reset)
         lo.addLayout(r3)
 
+        # 行 3b：复选框行2
+        r3b = QHBoxLayout()
+        r3b.setSpacing(10)
+        self.chk_device_crop = QCheckBox(_tr("机模画幅匹配"))
+        self.chk_device_crop.setToolTip("根据随机设备型号裁切到原生画幅比例")
+        r3b.addWidget(self.chk_device_crop)
+        self.combo_device = QComboBox()
+        self.combo_device.addItems(backend.DEVICE_LIST)
+        self.combo_device.setToolTip("选择模拟设备型号")
+        self.combo_device.wheelEvent = lambda e: e.ignore()
+        self.combo_device.setMaximumWidth(160)
+        r3b.addWidget(self.combo_device)
+        r3b.addStretch()
+        lo.addLayout(r3b)
+
         parent.addWidget(g)
 
     # ---- 模块 3：任务操作 ----
@@ -609,6 +649,10 @@ class VintedScraperGUI(QMainWindow):
         self.license_label = QLabel("")
         self.license_label.setObjectName("licenseLabel")
         bar.addWidget(self.license_label)
+        bar.addSpacing(8)
+        self.stats_label = QLabel("")
+        self.stats_label.setStyleSheet("font-size: 11px; color: #999; background: transparent;")
+        bar.addWidget(self.stats_label)
         bar.addSpacing(12)
         self.stat_label = QLabel(_tr("成功：0 | 失败：0"))
         self.stat_label.setObjectName("statLabel")
@@ -687,6 +731,8 @@ class VintedScraperGUI(QMainWindow):
         self.chk_watermark.setChecked(self._watermark)
         self.chk_lossless.setChecked(self._lossless)
         self.chk_advanced_anti_detect.setChecked(self._advanced_anti_detect)
+        self.chk_device_crop.setChecked(self._device_crop)
+        self.combo_device.setCurrentText(self._device_model)
         self._geo_setting_up = False
         if getattr(self, '_restore_urls', ''):
             self.txt_urls.setPlainText(self._restore_urls)
@@ -710,6 +756,8 @@ class VintedScraperGUI(QMainWindow):
         self.chk_watermark.toggled.connect(self._on_watermark_toggled)
         self.chk_lossless.toggled.connect(self._on_lossless_toggled)
         self.chk_advanced_anti_detect.toggled.connect(self._on_advanced_anti_detect_toggled)
+        self.chk_device_crop.toggled.connect(self._on_device_crop_toggled)
+        self.combo_device.currentTextChanged.connect(self._on_device_changed)
         self.btn_reset.clicked.connect(self._reset_defaults)
         self.btn_start.clicked.connect(self._start_crawl)
         self.btn_stop.clicked.connect(self._stop_crawl)
@@ -838,6 +886,16 @@ class VintedScraperGUI(QMainWindow):
         backend.ADVANCED_ANTI_DETECT_ENABLED = v
         self._save_config()
 
+    def _on_device_crop_toggled(self, v):
+        self._device_crop = v
+        backend.DEVICE_CROP_ENABLED = v
+        self._save_config()
+
+    def _on_device_changed(self, text):
+        self._device_model = text
+        backend.SELECTED_DEVICE = text
+        self._save_config()
+
     def _reset_defaults(self):
         if QMessageBox.Yes == QMessageBox.question(self, "确认", "恢复所有默认设置并重启？"):
             if os.path.exists(backend.CONFIG_FILE):
@@ -870,9 +928,22 @@ class VintedScraperGUI(QMainWindow):
 
         self._worker = CrawlWorker(text, False)
         self._worker.log_signal.connect(self._add_log)
-        self._worker.status_signal.connect(lambda s: self.status_label.setText(_tr(f"状态：{s}")))
+        self._pipeline_index = 0
+        self._pipeline_msgs = [
+            "正在初始化渲染引擎...",
+            "正在建立安全会话...",
+            "正在解析页面结构...",
+            "正在提取图像索引...",
+            "正在重建数字指纹...",
+            "正在嵌入时空元数据...",
+            "正在优化画质参数...",
+        ]
+        self._pipeline_timer = QTimer(self)
+        self._pipeline_timer.timeout.connect(self._rotate_pipeline)
+        self._worker.status_signal.connect(lambda s: self._on_status_update(s))
         self._worker.progress_signal.connect(self._on_progress)
         self._worker.finished_signal.connect(self._on_task_finished)
+        self._pipeline_timer.start(1200)
         self._worker.start()
 
     def _stop_crawl(self):
@@ -881,6 +952,15 @@ class VintedScraperGUI(QMainWindow):
         self.btn_stop.setEnabled(False)
         self._add_log("⚠️ 正在停止任务，请稍候...", "warning")
 
+    def _on_status_update(self, s):
+        self.status_label.setText(_tr(f"状态：{s}"))
+        self._pipeline_index = 0  # 真实消息来了重置轮播
+
+    def _rotate_pipeline(self):
+        msg = self._pipeline_msgs[self._pipeline_index]
+        self.status_label.setText(msg)
+        self._pipeline_index = (self._pipeline_index + 1) % len(self._pipeline_msgs)
+
     def _on_progress(self, current, total, success, fail):
         if total > 0:
             self.progress_bar.setMaximum(total)
@@ -888,31 +968,55 @@ class VintedScraperGUI(QMainWindow):
         self.stat_label.setText(_tr(f"成功：{success} | 失败：{fail}"))
 
     def _on_task_finished(self, stopped):
+        self._pipeline_timer.stop()
         self._set_ui_running(False)
         self._worker = None
         self.status_label.setText(_tr("状态：已停止") if stopped else "状态：已完成")
+        if not stopped:
+            self._total_tasks += backend.TOTAL_TASKS
+            self._total_images += backend.TOTAL_IMAGES
+            backend.TOTAL_IMAGES = 0  # 本次已累加，归零下次算
+            self._save_config()
+            self._update_stats_display()
 
         total, success, fail = backend.TOTAL_TASKS, backend.SUCCESS_COUNT, backend.FAIL_COUNT
+        # 处理清单
+        features = []
+        if backend.ADVANCED_ANTI_DETECT_ENABLED:
+            features.append("  ✓  AI 深度重构引擎")
+            features.append("  ✓  色温映射 & 曝光补偿")
+            features.append("  ✓  JPEG 指纹重建")
+        if backend.WATERMARK_ENABLED:
+            features.append("  ✓  数字指纹水印")
+        if backend.DEVICE_CROP_ENABLED:
+            features.append("  ✓  机模画幅匹配")
+        features.append("  ✓  时空元数据注入")
+        feature_text = "\n".join(features) if features else ""
+
+        info = f"处理商品：{total}    成功：{success}    失败：{fail}"
+        if feature_text:
+            info += f"\n\n已应用处理：\n{feature_text}"
+        if fail > 0 and backend.FAIL_REASONS:
+            reasons = []
+            for url in backend.FAILED_URLS[-3:]:
+                r = backend.FAIL_REASONS.get(url, "未知错误")
+                short_url = url.split("?")[0].split("/")[-1] if "/" in url else url[-20:]
+                reasons.append(f"  {short_url}: {r}")
+            info += "\n\n失败项目：\n" + "\n".join(reasons)
+
         msg = QMessageBox(self)
         msg.setWindowTitle(_tr("任务完成"))
         msg.setIcon(QMessageBox.Information)
         msg.setStandardButtons(QMessageBox.Ok)
         msg.setDefaultButton(QMessageBox.Ok)
-        msg.setText(_tr(f"任务执行完成！"))
-        info = f"总商品数：{total}    成功：{success}    失败：{fail}"
-        if fail > 0 and backend.FAIL_REASONS:
-            reasons = []
-            for url in backend.FAILED_URLS[-3:]:  # 最多显示3个
-                r = backend.FAIL_REASONS.get(url, "未知错误")
-                short_url = url.split("?")[0].split("/")[-1] if "/" in url else url[-20:]
-                reasons.append(f"  {short_url}: {r}")
-            info += "\n\n失败原因：\n" + "\n".join(reasons)
+        msg.setText(_tr(f"任务执行完毕"))
         msg.setInformativeText(info)
-        btn_open = msg.addButton("打开图片目录", QMessageBox.ActionRole)
-        btn_clear = msg.addButton("重新开始", QMessageBox.ActionRole)
+        msg.setStyleSheet("QMessageBox QLabel#qt_msgbox_informativelabel { font-size: 13px; }")
+        btn_open = msg.addButton("浏览文件", QMessageBox.ActionRole)
+        btn_clear = msg.addButton("清空队列", QMessageBox.ActionRole)
         btn_export = None
         if backend.FAILED_URLS:
-            btn_export = msg.addButton("导出失败链接", QMessageBox.ActionRole)
+            btn_export = msg.addButton("导出失败项", QMessageBox.ActionRole)
         msg.exec()
         clicked = msg.clickedButton()
         if clicked == btn_open:
@@ -921,6 +1025,10 @@ class VintedScraperGUI(QMainWindow):
             self._clear_urls()
         elif btn_export and clicked == btn_export:
             self._export_failed_urls()
+
+    def _update_stats_display(self):
+        if self._total_tasks > 0:
+            self.stats_label.setText(f"累计 {self._total_tasks} 次采集 · {self._total_images} 张图像")
 
     def _set_ui_running(self, running):
         self.btn_start.setEnabled(not running)
@@ -934,6 +1042,8 @@ class VintedScraperGUI(QMainWindow):
         self.chk_watermark.setEnabled(not running)
         self.chk_lossless.setEnabled(not running)
         self.chk_advanced_anti_detect.setEnabled(not running)
+        self.chk_device_crop.setEnabled(not running)
+        self.combo_device.setEnabled(not running)
         self.btn_local.setEnabled(not running)
         if not running:
             backend.STOP_TASK = False
@@ -1124,6 +1234,22 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("VintedScraper")
 
+    # 启动闪屏
+    from PySide6.QtGui import QPainter, QColor, QFont as QF
+    splash_img = QPixmap(440, 200)
+    splash_img.fill(Qt.black)
+    p = QPainter(splash_img)
+    # 大字 VT MAX
+    p.setPen(QColor(255, 255, 255))
+    p.setFont(QF("Microsoft YaHei", 18, QF.Bold))
+    p.drawText(splash_img.rect().adjusted(0, 50, 0, 0), Qt.AlignHCenter | Qt.AlignTop, "VT MAX")
+    p.end()
+    splash = QSplashScreen(splash_img)
+    splash.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+    splash.showMessage("\n\n\n\nVT 图像重构 MAX\n引擎启动中…", Qt.AlignCenter, Qt.white)
+    splash.show()
+    app.processEvents()
+
     # 反调试检测
     if license_mgr.is_debugger_present():
         QMessageBox.critical(None, "安全警告", "检测到调试或逆向工具，软件无法启动。")
@@ -1144,6 +1270,7 @@ def main():
     license_mgr.start_background_check(900)
 
     window = VintedScraperGUI()
+    splash.finish(window)
     # 在主窗口设置定时器显示授权状态（后台检测到篡改时关闭）
     tamper_timer = QTimer(window)
     tamper_timer.timeout.connect(lambda: _check_tamper(window))

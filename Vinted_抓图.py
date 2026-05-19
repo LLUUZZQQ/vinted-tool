@@ -127,10 +127,12 @@ SUCCESS_COUNT = 0
 FAIL_COUNT = 0
 FAILED_URLS = []
 FAIL_REASONS = {}
+TOTAL_IMAGES = 0   # 累计处理图片数（GUI 统计用）
 COMPRESS_ENABLED = False
 WATERMARK_ENABLED = False
 LOSSLESS_ENABLED = False  # 无损画质模式：quality=100 + 4:4:4
 ADVANCED_ANTI_DETECT_ENABLED = False  # 高级防检测：JPEG块破坏 + 空间噪声 + 空变亮度
+DEVICE_CROP_ENABLED = False  # 机模画幅匹配：裁切到随机设备原生比例
 
 # 回调函数引用（由 GUI 层设置）
 _on_log = None          # (content: str, level: str) -> None
@@ -183,6 +185,114 @@ def write_log(content, level="info"):
 
 def random_filename(ext=".jpg"):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=16)) + ext
+
+
+# ====================== 机模画幅映射 ======================
+DEVICE_LIST = [
+    "随机",
+    # Apple
+    "iPhone 15 Pro Max", "iPhone 15 Pro", "iPhone 15", "iPhone 14 Pro", "iPhone 14",
+    "iPhone 13 Pro", "iPhone 13", "iPhone SE",
+    # Samsung (欧洲销量第一)
+    "Galaxy S24 Ultra", "Galaxy S24", "Galaxy S23 Ultra", "Galaxy S23",
+    "Galaxy A55", "Galaxy A54", "Galaxy A35",
+    # Google (欧洲热门)
+    "Pixel 9 Pro", "Pixel 9", "Pixel 8 Pro", "Pixel 8", "Pixel 7a",
+    # Huawei
+    "HUAWEI P70 Pro", "HUAWEI P70", "Mate 60 Pro", "Mate 60",
+    # Xiaomi / Redmi
+    "Xiaomi 14 Ultra", "Xiaomi 14", "Xiaomi 13T Pro",
+    "Redmi Note 13 Pro", "Redmi Note 12",
+    # OnePlus
+    "OnePlus 12", "OnePlus 11", "OnePlus Nord 4",
+    # Sony
+    "Xperia 1 VI", "Xperia 5 V",
+    # OPPO
+    "OPPO Find X7", "OPPO Reno 11",
+    # Motorola
+    "Moto G84", "Moto Edge 50",
+    # 相机
+    "Canon EOS R5", "Canon EOS R6", "Canon EOS R8",
+    "Nikon Z8", "Nikon Z6 III", "Nikon Zf",
+    "Sony A7 IV", "Sony A7C II", "Sony A7R V",
+    "Fujifilm X-T5", "Leica Q3", "Panasonic S5 II",
+    "DJI Mini 4 Pro", "GoPro HERO12",
+]
+SELECTED_DEVICE = "随机"
+
+# 所有手机 4:3，所有相机 3:2
+def _get_device_ratio(device):
+    cameras_32 = ["Canon", "Nikon", "Sony A7", "Sony A7C", "Sony A7R",
+                  "Fujifilm", "Leica", "Panasonic"]
+    for c in cameras_32:
+        if c in device:
+            return (3, 2)
+    return (4, 3)
+
+DEVICE_INFO_MAP = {
+    # Apple
+    "iPhone 15 Pro Max": ("Apple", "iPhone 15 Pro Max", "Photos"),
+    "iPhone 15 Pro": ("Apple", "iPhone 15 Pro", "Photos"),
+    "iPhone 15": ("Apple", "iPhone 15", "Photos"),
+    "iPhone 14 Pro": ("Apple", "iPhone 14 Pro", "Photos"),
+    "iPhone 14": ("Apple", "iPhone 14", "Photos"),
+    "iPhone 13 Pro": ("Apple", "iPhone 13 Pro", "Photos"),
+    "iPhone 13": ("Apple", "iPhone 13", "Photos"),
+    "iPhone SE": ("Apple", "iPhone SE", "Photos"),
+    # Samsung
+    "Galaxy S24 Ultra": ("Samsung", "Galaxy S24 Ultra", "Gallery"),
+    "Galaxy S24": ("Samsung", "Galaxy S24", "Gallery"),
+    "Galaxy S23 Ultra": ("Samsung", "Galaxy S23 Ultra", "Gallery"),
+    "Galaxy S23": ("Samsung", "Galaxy S23", "Gallery"),
+    "Galaxy A55": ("Samsung", "Galaxy A55", "Gallery"),
+    "Galaxy A54": ("Samsung", "Galaxy A54", "Gallery"),
+    "Galaxy A35": ("Samsung", "Galaxy A35", "Gallery"),
+    # Google
+    "Pixel 9 Pro": ("Google", "Pixel 9 Pro", "Google Photos"),
+    "Pixel 9": ("Google", "Pixel 9", "Google Photos"),
+    "Pixel 8 Pro": ("Google", "Pixel 8 Pro", "Google Photos"),
+    "Pixel 8": ("Google", "Pixel 8", "Google Photos"),
+    "Pixel 7a": ("Google", "Pixel 7a", "Google Photos"),
+    # Huawei
+    "HUAWEI P70 Pro": ("HUAWEI", "P70 Pro", "Snapseed"),
+    "HUAWEI P70": ("HUAWEI", "P70", "Snapseed"),
+    "Mate 60 Pro": ("HUAWEI", "Mate 60 Pro", "System Camera"),
+    "Mate 60": ("HUAWEI", "Mate 60", "System Camera"),
+    # Xiaomi
+    "Xiaomi 14 Ultra": ("Xiaomi", "14 Ultra", "Lightroom"),
+    "Xiaomi 14": ("Xiaomi", "14", "Lightroom"),
+    "Xiaomi 13T Pro": ("Xiaomi", "13T Pro", "Lightroom"),
+    "Redmi Note 13 Pro": ("Xiaomi", "Redmi Note 13 Pro", "Lightroom"),
+    "Redmi Note 12": ("Xiaomi", "Redmi Note 12", "Snapseed"),
+    # OnePlus
+    "OnePlus 12": ("OnePlus", "OnePlus 12", "Photos"),
+    "OnePlus 11": ("OnePlus", "OnePlus 11", "Photos"),
+    "OnePlus Nord 4": ("OnePlus", "Nord 4", "Photos"),
+    # Sony
+    "Xperia 1 VI": ("Sony", "Xperia 1 VI", "Photos"),
+    "Xperia 5 V": ("Sony", "Xperia 5 V", "Photos"),
+    # OPPO
+    "OPPO Find X7": ("OPPO", "Find X7", "Photos"),
+    "OPPO Reno 11": ("OPPO", "Reno 11", "Photos"),
+    # Motorola
+    "Moto G84": ("Motorola", "Moto G84", "Photos"),
+    "Moto Edge 50": ("Motorola", "Edge 50", "Photos"),
+    # 相机
+    "Canon EOS R5": ("Canon", "EOS R5", "Lightroom"),
+    "Canon EOS R6": ("Canon", "EOS R6", "Lightroom"),
+    "Canon EOS R8": ("Canon", "EOS R8", "Lightroom"),
+    "Nikon Z8": ("Nikon", "Z8", "Lightroom"),
+    "Nikon Z6 III": ("Nikon", "Z6 III", "Lightroom"),
+    "Nikon Zf": ("Nikon", "Zf", "Lightroom"),
+    "Sony A7 IV": ("Sony", "A7 IV", "Lightroom"),
+    "Sony A7C II": ("Sony", "A7C II", "Lightroom"),
+    "Sony A7R V": ("Sony", "A7R V", "Lightroom"),
+    "Fujifilm X-T5": ("Fujifilm", "X-T5", "Lightroom"),
+    "Leica Q3": ("Leica", "Q3", "Lightroom"),
+    "Panasonic S5 II": ("Panasonic", "S5 II", "Lightroom"),
+    "DJI Mini 4 Pro": ("DJI", "Mini 4 Pro", "Photos"),
+    "GoPro HERO12": ("GoPro", "HERO12", "Photos"),
+}
 
 
 # ====================== 核心函数 ======================
@@ -296,6 +406,27 @@ def process_image(image_path, skip_gps=False):
             cf = 1 + random.uniform(*CONTRAST_ADJUST) / 100
             img = ImageEnhance.Contrast(img).enhance(cf)
 
+        # ---- 色温偏置 + Gamma：模拟不同光线和曝光环境 ----
+        if ADVANCED_ANTI_DETECT_ENABLED:
+            img_array = np.array(img, dtype=np.float32)
+            # 暖色或冷色偏置 ±3%
+            warmth = random.uniform(-0.03, 0.03)
+            if warmth > 0:
+                img_array[:, :, 0] *= 1 + warmth
+                img_array[:, :, 2] *= 1 - warmth * 0.5
+            else:
+                img_array[:, :, 2] *= 1 + abs(warmth)
+                img_array[:, :, 0] *= 1 - abs(warmth) * 0.5
+            img_array = np.clip(img_array, 0, 255).astype(np.uint8)
+            img = Image.fromarray(img_array)
+            # Gamma 随机偏置：每张图的曝光曲线微不同
+            gamma = random.uniform(0.97, 1.03)
+            if abs(gamma - 1.0) > 0.005:
+                img_array = np.array(img, dtype=np.float32) / 255.0
+                img_array = np.power(img_array, gamma) * 255.0
+                img_array = np.clip(img_array, 0, 255).astype(np.uint8)
+                img = Image.fromarray(img_array)
+
         # ---- 隐形水印 ----
         if WATERMARK_ENABLED:
             try:
@@ -327,10 +458,15 @@ def process_image(image_path, skip_gps=False):
                 dt = f"{random_year}:{random_month:02d}:{random_day:02d} {random_hour:02d}:{random_min:02d}:{random_sec:02d}"
 
                 exif_dict = {"0th": {}, "Exif": {}, "GPS": {}}
+                if SELECTED_DEVICE != "随机" and SELECTED_DEVICE in DEVICE_INFO_MAP:
+                    make, model, software = DEVICE_INFO_MAP[SELECTED_DEVICE]
+                else:
+                    models = list(DEVICE_INFO_MAP.keys())
+                    make, model, software = DEVICE_INFO_MAP[random.choice(models)]
                 exif_dict["0th"] = {
-                    piexif.ImageIFD.Make: random.choice(["iPhone", "HUAWEI", "Xiaomi", "Canon", "Nikon"]),
-                    piexif.ImageIFD.Model: random.choice(["iPhone 14", "iPhone 15", "P70", "Mate 60", "EOS R5"]),
-                    piexif.ImageIFD.Software: random.choice(["Photos", "Snapseed", "Lightroom", "System Camera"]),
+                    piexif.ImageIFD.Make: make,
+                    piexif.ImageIFD.Model: model,
+                    piexif.ImageIFD.Software: software,
                     piexif.ImageIFD.DateTime: dt,
                     piexif.ImageIFD.Orientation: 1,
                 }
@@ -392,6 +528,34 @@ def process_image(image_path, skip_gps=False):
             except Exception as e:
                 write_log(f"EXIF地理信息写入异常: {e}", "warning")
 
+        # 机模画幅匹配：轻量裁切 + 阈值保护
+        if DEVICE_CROP_ENABLED and not skip_gps:
+            device = SELECTED_DEVICE if SELECTED_DEVICE != "随机" else model
+            ratio = _get_device_ratio(device)
+            if ratio:
+                tw, th = ratio
+                ow, oh = img.size
+                cur_ratio = ow / oh
+                target_ratio = tw / th
+                diff_pct = abs(cur_ratio - target_ratio) / target_ratio
+                # 差不到 3% 跳过，最多裁 8%
+                if diff_pct >= 0.03:
+                    crop_max = int(min(ow, oh) * 0.08)
+                    if ow / oh > target_ratio:
+                        # 图片太宽：裁左右各一半
+                        target_w = int(oh * target_ratio)
+                        trim = min(ow - target_w, crop_max * 2)
+                        if trim > 0:
+                            trim //= 2
+                            img = img.crop((trim, 0, ow - trim, oh))
+                    else:
+                        # 图片太高：裁上下各一半
+                        target_h = int(ow / target_ratio)
+                        trim = min(oh - target_h, crop_max * 2)
+                        if trim > 0:
+                            trim //= 2
+                            img = img.crop((0, trim, ow, oh - trim))
+
         # PNG 中间格式：破坏 JPEG 双重压缩痕迹
         if ADVANCED_ANTI_DETECT_ENABLED:
             try:
@@ -411,11 +575,15 @@ def process_image(image_path, skip_gps=False):
             save_quality = random.randint(*COMPRESS_QUALITY_RANGE)
             subsampling = random.choice(SUBSAMPLING_OPTIONS)
         else:
-            save_quality = random.randint(*JPEG_QUALITY_RANGE)
+            # 高级模式：更宽的质量范围 + 随机优化，使量化表各次不同
+            if ADVANCED_ANTI_DETECT_ENABLED:
+                save_quality = random.randint(90, 98)
+            else:
+                save_quality = random.randint(*JPEG_QUALITY_RANGE)
             subsampling = random.choice(SUBSAMPLING_OPTIONS)
 
         temp_path = image_path + "_processed.jpg"
-        save_kwargs = {"format": "JPEG", "quality": save_quality, "subsampling": subsampling}
+        save_kwargs = {"format": "JPEG", "quality": save_quality, "subsampling": subsampling, "optimize": True}
         if exif_bytes:
             save_kwargs["exif"] = exif_bytes
         img.save(temp_path, **save_kwargs)
@@ -435,6 +603,8 @@ def process_image(image_path, skip_gps=False):
         with open(new_path, "rb") as f:
             new_md5 = hashlib.md5(f.read()).hexdigest()
         write_log(f"✅ 防重处理成功 | {new_filename} | {file_size}KB | Q={save_quality} SS={subsampling} | MD5={new_md5[:12]}...", "success")
+        global TOTAL_IMAGES
+        TOTAL_IMAGES += 1
         return True
     except Exception as e:
         write_log(f"❌ 图片处理失败 | 路径：{image_path} | 错误：{e}", "error")
@@ -911,6 +1081,8 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
     FAIL_COUNT = 0
     FAILED_URLS = []
     FAIL_REASONS = {}
+    global TOTAL_IMAGES
+    TOTAL_IMAGES = 0
 
     save_root = CUSTOM_SAVE_ROOT.strip() or DEFAULT_SAVE_ROOT
     if not os.path.exists(save_root):
