@@ -536,35 +536,45 @@ def init_chrome(debug_mode):
     # 确保 Chrome 可用（无 Chrome 则自动下载便携版）
     chrome_binary = _ensure_chrome()
 
-    # 获取 chromedriver 路径
-    frozen_dir = getattr(sys, '_MEIPASS', None)
+    # 获取 chromedriver 路径：优先自动匹配，再回退捆绑
     driver_path = None
-    if frozen_dir:
-        bundled = os.path.join(frozen_dir, 'chromedriver.exe')
-        exe_dir = os.path.dirname(sys.executable)
-        target = os.path.join(exe_dir, 'chromedriver.exe')
-        if not os.path.exists(target) and os.path.exists(bundled):
-            try:
-                shutil.copy2(bundled, target)
-            except:
-                pass
-        if os.path.exists(target):
-            driver_path = target
-        elif os.path.exists(bundled):
-            driver_path = bundled
+    # 1. webdriver-manager 自动下载匹配版本（最可靠）
+    try:
+        from webdriver_manager.chrome import ChromeDriverManager
+        new_path = ChromeDriverManager().install()
+        if new_path and os.path.exists(new_path):
+            driver_path = new_path
+    except:
+        pass
+    # 2. 捆绑的 chromedriver
     if not driver_path:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        local = os.path.join(script_dir, 'chromedriver.exe')
-        if os.path.exists(local):
-            driver_path = local
-
+        frozen_dir = getattr(sys, '_MEIPASS', None)
+        if frozen_dir:
+            bundled = os.path.join(frozen_dir, 'chromedriver.exe')
+            exe_dir = os.path.dirname(sys.executable)
+            target = os.path.join(exe_dir, 'chromedriver.exe')
+            if not os.path.exists(target) and os.path.exists(bundled):
+                try:
+                    shutil.copy2(bundled, target)
+                except:
+                    pass
+            if os.path.exists(target):
+                driver_path = target
+            elif os.path.exists(bundled):
+                driver_path = bundled
+        if not driver_path:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            local = os.path.join(script_dir, 'chromedriver.exe')
+            if os.path.exists(local):
+                driver_path = local
+    # 3. 系统 PATH
     if driver_path:
         service = Service(executable_path=driver_path)
     else:
         try:
             service = Service()
         except:
-            raise Exception("Chromedriver 未找到")
+            raise Exception("Chromedriver 未找到，请检查网络连接")
 
     options = webdriver.ChromeOptions()
     if chrome_binary:
@@ -587,24 +597,7 @@ def init_chrome(debug_mode):
     if PROXY.strip():
         options.add_argument(f"--proxy-server={PROXY}")
         write_log(f"✅ 已加载代理：{PROXY.split('@')[-1]}", "success")
-    try:
-        driver = webdriver.Chrome(service=service, options=options)
-    except Exception as e:
-        err = str(e)
-        if 'version' in err.lower() or '193' in err or 'Win32' in err or 'not a valid' in err.lower():
-            write_log(f"驱动异常，自动修复...", "warning")
-            try:
-                from webdriver_manager.chrome import ChromeDriverManager
-                new_path = ChromeDriverManager().install()
-                if new_path and os.path.exists(new_path):
-                    service = Service(executable_path=new_path)
-                    driver = webdriver.Chrome(service=service, options=options)
-                else:
-                    raise
-            except:
-                raise
-        else:
-            raise
+    driver = webdriver.Chrome(service=service, options=options)
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
         "source": """
