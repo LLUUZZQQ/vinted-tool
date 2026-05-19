@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=750">
+<title>用户须知</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:"PingFang SC","Microsoft YaHei",sans-serif; background:#000; display:flex; justify-content:center; padding:20px; }
+.doc { width:750px; background:#0d0d0d; border-radius:20px; overflow:hidden; padding:48px 48px 40px; }
+.doc .title { font-size:30px; font-weight:900; color:#fff; text-align:center; margin-bottom:4px; }
+.doc .subtitle { font-size:13px; color:#555; text-align:center; margin-bottom:36px; }
+.section { margin-bottom:28px; }
+.section h3 { color:#fff; font-size:17px; font-weight:700; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid #1a1a1a; }
+.section p, .section li { color:#aaa; font-size:14px; line-height:2; }
+.section ul { list-style:none; padding-left:0; }
+.section ul li::before { content:"·  "; color:#555; }
+.section .qa { margin-bottom:14px; }
+.section .qa .q { color:#ccc; font-weight:600; margin-bottom:4px; }
+.section .qa .a { color:#888; padding-left:0; }
+.footer { text-align:center; color:#444; font-size:13px; margin-top:36px; padding-top:20px; border-top:1px solid #1a1a1a; }
+</style>
+</head>
+<body>
+<div class="doc">
+    <div class="title">用户须知</div>
+    <div class="subtitle">VT 图像重构 MAX · 有问题及时联系，会优化改进</div>
+
+    <div class="section">
+        <h3>激活方式</h3>
+        <ul>
+            <li>双击运行 VT_ImageMAX.exe</li>
+            <li>复制窗口中的「设备标识」发送给管理员</li>
+            <li>收到激活码后，粘贴到输入框，点击「激活」</li>
+            <li>激活成功后将自动进入主界面</li>
+            <li>一个激活码仅限一台设备使用，更换电脑需重新激活</li>
+            <li>授权到期后程序会自动提醒，请联系管理员续期</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h3>使用步骤</h3>
+        <ul>
+            <li>粘贴 Vinted 商品链接到输入框，每行一个（需包含 vinted.fr 或 vinted.com）</li>
+            <li>在「处理配置」中勾选需要的功能（推荐默认全开）</li>
+            <li>设置「地理元数据」，选择国家和城市（10 国 / 80+ 城市，全国随机或定点）</li>
+            <li>设置「输出路径」，默认为程序同目录下的输出文件夹</li>
+            <li>点击「启动采集」</li>
+            <li>等待处理完成，状态栏会显示实时进度</li>
+            <li>点击「查看输出」打开保存目录</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h3>处理配置说明</h3>
+        <p><b style="color:#ccc">智能画质引擎</b> &nbsp;适度优化图片体积，肉眼无法察觉。与原画输出互斥。</p>
+        <p><b style="color:#ccc">无损原画输出</b> &nbsp;最高画质 100% 保存，保留全部细节。与智能画质互斥。</p>
+        <p><b style="color:#ccc">数字指纹水印</b> &nbsp;嵌入不可见数字水印，可用于溯源和版权保护。</p>
+        <p><b style="color:#ccc">AI 深度重构</b> &nbsp;像素级重建图像指纹特征：JPEG 块对齐破坏、传感器噪声模拟、空间亮度渐变、EXIF 时空元数据注入等。推荐开启。</p>
+    </div>
+
+    <div class="section">
+        <h3>本地批量处理</h3>
+        <ul>
+            <li>支持直接拖放文件夹至窗口任何位置</li>
+            <li>点击「批量处理 ▾」选择图片文件或文件夹</li>
+            <li>支持格式：JPG / JPEG / PNG / WebP / BMP</li>
+            <li>处理后的图片会替换原文件，建议先备份</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h3>更新升级</h3>
+        <p>点击右上角「检查更新」可在线升级。有新版本时自动下载替换，旧版备份为 .old 文件。</p>
+    </div>
+
+    <div class="section">
+        <h3>注意事项</h3>
+        <ul>
+            <li>首次使用需要网络连接</li>
+            <li>如未安装驱动，首次启动会自动下载（约 2-3 分钟，仅一次）</li>
+            <li>采集过程中请勿关闭程序</li>
+            <li>处理大量图片时建议关闭其他程序</li>
+            <li>请勿同时运行多个程序实例</li>
+            <li>激活码请妥善保管，丢失不补</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h3>常见问题</h3>
+        <div class="qa"><div class="q">Q: 激活失败？</div><div class="a">A: 请确认激活码完整粘贴，每个激活码绑定一台设备。</div></div>
+        <div class="qa"><div class="q">Q: 提示"未检测到有效的 Vinted 商品链接"？</div><div class="a">A: 请检查链接格式，需包含 vinted.fr 或 vinted.com。</div></div>
+        <div class="qa"><div class="q">Q: 点击"启动采集"后无反应？</div><div class="a">A: 请检查网络是否正常，稍等重试或更换链接。</div></div>
+        <div class="qa"><div class="q">Q: 图片有白色细线？</div><div class="a">A: 程序已自动处理，如仍有请更新到最新版本。</div></div>
+        <div class="qa"><div class="q">Q: 处理后图片看起来一样？</div><div class="a">A: 肉眼一样但数字指纹已完全改变，平台无法检测为重复。</div></div>
+        <div class="qa"><div class="q">Q: 授权已过期？</div><div class="a">A: 联系管理员续期，获取新激活码重新激活即可。</div></div>
+        <div class="qa"><div class="q">Q: 闪退或报错？</div><div class="a">A: 确认杀毒软件没有拦截，将程序加入白名单。</div></div>
+    </div>
+
+    <div class="footer">微信：UU_L777777</div>
+</div>
+</body>
+</html>

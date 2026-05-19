@@ -587,7 +587,17 @@ def init_chrome(debug_mode):
     if PROXY.strip():
         options.add_argument(f"--proxy-server={PROXY}")
         write_log(f"✅ 已加载代理：{PROXY.split('@')[-1]}", "success")
-    driver = webdriver.Chrome(service=service, options=options)
+    try:
+        driver = webdriver.Chrome(service=service, options=options)
+    except Exception as e:
+        if 'This version of ChromeDriver only supports' in str(e):
+            write_log("驱动版本不匹配，自动下载兼容版本...", "warning")
+            from webdriver_manager.chrome import ChromeDriverManager
+            new_path = ChromeDriverManager().install()
+            service = Service(executable_path=new_path)
+            driver = webdriver.Chrome(service=service, options=options)
+        else:
+            raise
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
         "source": """

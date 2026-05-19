@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=720">
+<title>VTMAX 价格</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #0a0a0a; display: flex; justify-content: center; padding: 40px; }
+.card { background: #111; border-radius: 20px; padding: 48px 40px; max-width: 720px; width: 100%; }
+.header { text-align: center; margin-bottom: 40px; }
+.header .brand { font-size: 28px; font-weight: 800; color: #fff; letter-spacing: 2px; }
+.header .sub { font-size: 13px; color: #666; margin-top: 4px; }
+.grid { display: flex; gap: 10px; flex-wrap: wrap; }
+.tier { flex: 1; min-width: 120px; background: #1a1a1a; border-radius: 14px; padding: 24px 16px; text-align: center; position: relative; border: 1px solid #222; transition: .2s; }
+.tier:hover { border-color: #444; }
+.tier.best { border-color: #333; background: #1c1c1c; }
+.tier.best::before { content: "推荐"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fff; color: #000; font-size: 11px; font-weight: 700; padding: 3px 12px; border-radius: 20px; }
+.name { font-size: 13px; color: #888; margin-bottom: 8px; }
+.price { font-size: 28px; font-weight: 700; color: #fff; }
+.price .unit { font-size: 13px; color: #666; font-weight: 400; }
+.per { font-size: 11px; color: #555; margin-top: 6px; }
+.save { font-size: 11px; color: #4ade80; margin-top: 4px; min-height: 16px; }
+.footer { text-align: center; margin-top: 32px; color: #555; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="card">
+    <div class="header">
+        <div class="brand">VT图像重构MAX</div>
+        <div class="sub">图像智能处理系统 · 定价方案</div>
+    </div>
+    <div class="grid">
+        <div class="tier">
+            <div class="name">7天 体验</div>
+            <div class="price"><span class="unit">¥</span>8</div>
+            <div class="per">日均 ¥1.14</div>
+            <div class="save"></div>
+        </div>
+        <div class="tier">
+            <div class="name">30天 月度</div>
+            <div class="price"><span class="unit">¥</span>18</div>
+            <div class="per">日均 ¥0.60</div>
+            <div class="save"></div>
+        </div>
+        <div class="tier">
+            <div class="name">90天 季度</div>
+            <div class="price"><span class="unit">¥</span>45</div>
+            <div class="per">日均 ¥0.50</div>
+            <div class="save">省 ¥9</div>
+        </div>
+        <div class="tier">
+            <div class="name">180天 半年</div>
+            <div class="price"><span class="unit">¥</span>78</div>
+            <div class="per">日均 ¥0.43</div>
+            <div class="save">省 ¥30</div>
+        </div>
+        <div class="tier best">
+            <div class="name">365天 年度</div>
+            <div class="price"><span class="unit">¥</span>128</div>
+            <div class="per">日均 ¥0.35</div>
+            <div class="save">省 ¥88</div>
+        </div>
+    </div>
+    <div class="footer">微信：UU_L777777</div>
+</div>
+</body>
+</html>
