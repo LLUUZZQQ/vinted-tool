@@ -429,27 +429,39 @@ def _apply_perspective_proper(img, max_offset_pct):
     return img.transform((w, h), Image.PERSPECTIVE, coeffs, resample=Image.BICUBIC, fillcolor=(255,255,255))
 
 
-def _apply_elastic_distortion(img_array, grid_size=6, max_disp=1.5):
-    """弹性局部扭曲：粗网格随机位移 + 上采样，模拟拍摄角度微变（纯 numpy）"""
+def _apply_elastic_distortion(img_array, grid_size=8, max_disp=2.0):
+    """弹性局部扭曲：纯 numpy 双线性平滑上采样，无网格线"""
     h, w = img_array.shape[:2]
     gh, gw = grid_size, grid_size
     dx = (np.random.rand(gh, gw) * 2 - 1) * max_disp
     dy = (np.random.rand(gh, gw) * 2 - 1) * max_disp
-    # 简单上采样：重复像素 + 裁剪
-    dx_up = np.repeat(np.repeat(dx, int(np.ceil(h/gh)), axis=0)[:h,:],
-                      int(np.ceil(w/gw)), axis=1)[:h,:w].astype(np.float32)
-    dy_up = np.repeat(np.repeat(dy, int(np.ceil(h/gh)), axis=0)[:h,:],
-                      int(np.ceil(w/gw)), axis=1)[:h,:w].astype(np.float32)
+    # 纯 numpy 双线性插值上采样位移场
+    y_ratio = (gh - 1) / (h - 1) if h > 1 else 0
+    x_ratio = (gw - 1) / (w - 1) if w > 1 else 0
+    y_src = np.arange(h, dtype=np.float32) * y_ratio
+    x_src = np.arange(w, dtype=np.float32) * x_ratio
+    y0 = np.floor(y_src).astype(np.int32); x0 = np.floor(x_src).astype(np.int32)
+    y1 = np.clip(y0+1, 0, gh-1); x1 = np.clip(x0+1, 0, gw-1)
+    wy = (y_src - y0).astype(np.float32); wx = (x_src - x0).astype(np.float32)
+    # 双线性插值到全分辨率
+    dx_up = ((1-wy[:,None])*(1-wx[None,:])*dx[y0[:,None],x0[None,:]] +
+             (1-wy[:,None])*wx[None,:]*dx[y0[:,None],x1[None,:]] +
+             wy[:,None]*(1-wx[None,:])*dx[y1[:,None],x0[None,:]] +
+             wy[:,None]*wx[None,:]*dx[y1[:,None],x1[None,:]])
+    dy_up = ((1-wy[:,None])*(1-wx[None,:])*dy[y0[:,None],x0[None,:]] +
+             (1-wy[:,None])*wx[None,:]*dy[y0[:,None],x1[None,:]] +
+             wy[:,None]*(1-wx[None,:])*dy[y1[:,None],x0[None,:]] +
+             wy[:,None]*wx[None,:]*dy[y1[:,None],x1[None,:]])
     y_idx, x_idx = np.mgrid[0:h, 0:w].astype(np.float32)
     map_x = np.clip(x_idx + dy_up, 0, w-1)
     map_y = np.clip(y_idx + dx_up, 0, h-1)
-    x0 = np.floor(map_x).astype(np.int32); y0 = np.floor(map_y).astype(np.int32)
-    x1 = np.clip(x0+1, 0, w-1); y1 = np.clip(y0+1, 0, h-1)
-    wx = (map_x - x0).astype(np.float32); wy = (map_y - y0).astype(np.float32)
+    x0m = np.floor(map_x).astype(np.int32); y0m = np.floor(map_y).astype(np.int32)
+    x1m = np.clip(x0m+1, 0, w-1); y1m = np.clip(y0m+1, 0, h-1)
+    wxm = (map_x - x0m).astype(np.float32); wym = (map_y - y0m).astype(np.float32)
     result = np.zeros_like(img_array)
     for c in range(3):
-        result[:,:,c] = ((1-wx)*(1-wy)*img_array[y0,x0,c] + wx*(1-wy)*img_array[y0,x1,c] +
-                         (1-wx)*wy*img_array[y1,x0,c] + wx*wy*img_array[y1,x1,c])
+        result[:,:,c] = ((1-wxm)*(1-wym)*img_array[y0m,x0m,c] + wxm*(1-wym)*img_array[y0m,x1m,c] +
+                         (1-wxm)*wym*img_array[y1m,x0m,c] + wxm*wym*img_array[y1m,x1m,c])
     return result.astype(np.uint8)
 
 
