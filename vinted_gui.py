@@ -47,6 +47,8 @@ _RELEASE_DICT = {
     "无损画质": "原画输出",
     "高级防检测": "AI指纹重构",
     "机模画幅匹配": "机型自定义",
+    "深度防重处理": "指纹深度重建",
+    "输出版本数": "指纹版本数",
     # 按钮
     "开始抓取": "开始采集",
     "停止任务": "终止",
@@ -450,6 +452,8 @@ class VintedScraperGUI(QMainWindow):
         self._advanced_anti_detect = cfg.get("advanced_anti_detect", "False") == "True"
         self._device_crop = cfg.get("device_crop", "False") == "True"
         self._device_model = cfg.get("device_model", "随机")
+        self._deep_anti_duplicate = cfg.get("deep_anti_duplicate", "False") == "True"
+        self._deep_variants = int(cfg.get("deep_variants", "2"))
 
         backend.CUSTOM_SAVE_ROOT = self._save_path
         backend.COMPRESS_ENABLED = self._compress
@@ -458,6 +462,8 @@ class VintedScraperGUI(QMainWindow):
         backend.ADVANCED_ANTI_DETECT_ENABLED = self._advanced_anti_detect
         backend.DEVICE_CROP_ENABLED = self._device_crop
         backend.SELECTED_DEVICE = self._device_model
+        backend.DEEP_ANTI_DUPLICATE_ENABLED = self._deep_anti_duplicate
+        backend.DEEP_MODE_VARIANTS = self._deep_variants
 
         # 累计统计
         self._total_images = int(cfg.get("total_images", "0"))
@@ -497,6 +503,8 @@ class VintedScraperGUI(QMainWindow):
             "advanced_anti_detect": str(self._advanced_anti_detect),
             "device_crop": str(self._device_crop),
             "device_model": self._device_model,
+            "deep_anti_duplicate": str(self._deep_anti_duplicate),
+            "deep_variants": str(self._deep_variants),
             "total_images": str(self._total_images),
             "total_tasks": str(self._total_tasks),
         })
@@ -641,6 +649,20 @@ class VintedScraperGUI(QMainWindow):
         self.combo_device.wheelEvent = lambda e: e.ignore()
         self.combo_device.setMaximumWidth(160)
         r3b.addWidget(self.combo_device)
+        r3b.addSpacing(16)
+        self.chk_deep_anti_duplicate = QCheckBox(_tr("深度防重处理"))
+        self.chk_deep_anti_duplicate.setToolTip("仿射剪切+镜头畸变+参数增强，针对平台重复检测重建图像指纹")
+        r3b.addWidget(self.chk_deep_anti_duplicate)
+        lbl_var = QLabel(_tr("输出版本数"))
+        lbl_var.setStyleSheet("font-size:12px; color:#888; background:transparent;")
+        r3b.addWidget(lbl_var)
+        self.combo_variants = QComboBox()
+        self.combo_variants.addItems(["1", "2", "3"])
+        self.combo_variants.setCurrentIndex(1)
+        self.combo_variants.setToolTip("深度模式下输出多个指纹不同的版本")
+        self.combo_variants.wheelEvent = lambda e: e.ignore()
+        self.combo_variants.setMaximumWidth(50)
+        r3b.addWidget(self.combo_variants)
         r3b.addStretch()
         lo.addLayout(r3b)
 
@@ -746,6 +768,8 @@ class VintedScraperGUI(QMainWindow):
         self.chk_advanced_anti_detect.setChecked(self._advanced_anti_detect)
         self.chk_device_crop.setChecked(self._device_crop)
         self.combo_device.setCurrentText(self._device_model)
+        self.chk_deep_anti_duplicate.setChecked(self._deep_anti_duplicate)
+        self.combo_variants.setCurrentText(str(self._deep_variants))
         self._geo_setting_up = False
         if getattr(self, '_restore_urls', ''):
             self.txt_urls.setPlainText(self._restore_urls)
@@ -771,6 +795,8 @@ class VintedScraperGUI(QMainWindow):
         self.chk_advanced_anti_detect.toggled.connect(self._on_advanced_anti_detect_toggled)
         self.chk_device_crop.toggled.connect(self._on_device_crop_toggled)
         self.combo_device.currentTextChanged.connect(self._on_device_changed)
+        self.chk_deep_anti_duplicate.toggled.connect(self._on_deep_anti_duplicate_toggled)
+        self.combo_variants.currentTextChanged.connect(self._on_variants_changed)
         self.btn_reset.clicked.connect(self._reset_defaults)
         self.btn_start.clicked.connect(self._start_crawl)
         self.btn_stop.clicked.connect(self._stop_crawl)
@@ -907,6 +933,16 @@ class VintedScraperGUI(QMainWindow):
     def _on_device_changed(self, text):
         self._device_model = text
         backend.SELECTED_DEVICE = text
+        self._save_config()
+
+    def _on_deep_anti_duplicate_toggled(self, v):
+        self._deep_anti_duplicate = v
+        backend.DEEP_ANTI_DUPLICATE_ENABLED = v
+        self._save_config()
+
+    def _on_variants_changed(self, text):
+        self._deep_variants = int(text)
+        backend.DEEP_MODE_VARIANTS = int(text)
         self._save_config()
 
     def _reset_defaults(self):
@@ -1104,8 +1140,23 @@ class VintedScraperGUI(QMainWindow):
             self._add_log("⚠️ 所选文件夹中没有图片文件", "warning")
 
     def _run_local_worker(self, paths):
-        self._add_log(f"🖼️ 开始本地防重处理，共 {len(paths)} 张图片", "info")
-        self._local_worker = LocalProcessWorker(paths)
+        import shutil as _shutil
+        variants = backend.DEEP_MODE_VARIANTS if backend.DEEP_ANTI_DUPLICATE_ENABLED else 1
+        expanded = []
+        self._deep_copies = []
+        for p in paths:
+            expanded.append(p)
+            for v in range(2, variants + 1):
+                base, ext = os.path.splitext(p)
+                cp = f"{base}_v{v}{ext}"
+                _shutil.copy2(p, cp)
+                expanded.append(cp)
+                self._deep_copies.append(cp)
+        if variants > 1:
+            self._add_log(f"🖼 开始本地处理，{len(paths)} 张图片 → 深度模式各输出 {variants} 个版本，共 {len(expanded)} 次", "info")
+        else:
+            self._add_log(f"🖼 开始本地防重处理，共 {len(paths)} 张图片", "info")
+        self._local_worker = LocalProcessWorker(expanded)
         self._local_worker.log_signal.connect(self._add_log)
         self._local_worker.progress_signal.connect(
             lambda c, t: (self.progress_bar.setMaximum(t), self.progress_bar.setValue(c))
@@ -1115,6 +1166,14 @@ class VintedScraperGUI(QMainWindow):
         self._local_worker.start()
 
     def _on_local_finished(self, ok):
+        # 清理深度模式遗留的 _v2/_v3 副本
+        for p in getattr(self, '_deep_copies', []):
+            try:
+                if os.path.exists(p):
+                    os.remove(p)
+            except:
+                pass
+        self._deep_copies = []
         self._local_worker = None
         self.btn_local.setEnabled(True)
         self.progress_bar.setMaximum(100)

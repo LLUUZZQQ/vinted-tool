@@ -134,6 +134,24 @@ LOSSLESS_ENABLED = False  # 无损画质模式：quality=100 + 4:4:4
 ADVANCED_ANTI_DETECT_ENABLED = False  # 高级防检测：JPEG块破坏 + 空间噪声 + 空变亮度
 DEVICE_CROP_ENABLED = False  # 机模画幅匹配：裁切到随机设备原生比例
 
+# 深度防重处理模式（针对平台重复检测）
+DEEP_ANTI_DUPLICATE_ENABLED = False  # 深度防重：透视变换 + 镜头畸变 + 参数增强
+# DEEP_PERSPECTIVE_STRONG 已移除，统一使用轻度档避免白边
+DEEP_MODE_VARIANTS = 2               # 深度模式输出版本数（1-3）
+
+# 深度模式参数集
+DEEP_ROTATE_RANGE = (1.2, 2.5)
+DEEP_CROP_RATIO = (0.015, 0.04)
+DEEP_NOISE_SIGMA_RANGE = (3, 8)
+DEEP_BRIGHTNESS_ADJUST = (-4.0, 4.0)
+DEEP_CONTRAST_ADJUST = (-4.0, 4.0)
+DEEP_JPEG_QUALITY_RANGE = (85, 94)
+DEEP_BLOCK_SHIFT_RANGE = (1.5, 3.0)
+DEEP_SPATIAL_BRIGHTNESS_STRENGTH = (0.004, 0.01)
+DEEP_WARMTH_RANGE = (-0.10, 0.10)
+DEEP_GAMMA_RANGE = (0.93, 1.07)
+DEEP_LENS_DISTORTION_RANGE = (-0.010, 0.010)   # 镜头畸变加强以补偿去掉仿射剪切
+
 # 回调函数引用（由 GUI 层设置）
 _on_log = None          # (content: str, level: str) -> None
 _log_lock = threading.Lock()  # 并发日志写入保护
@@ -303,6 +321,82 @@ DEVICE_INFO_MAP = {
 }
 
 
+# ====================== 深度防重变换函数 ======================
+def _apply_perspective(img, max_offset_pct):
+    """仿射剪切+微缩放：模拟拍摄角度变化，破坏 pHash 低频指纹"""
+    w, h = img.size
+    m = max_offset_pct * 0.25  # 配合后续 4px 边缘裁切，留有充足余量
+    shear_x = random.uniform(-m, m)
+    shear_y = random.uniform(-m, m)
+    scale = 1.0 + random.uniform(-m * 0.3, m * 0.3)
+    tx = w / 2 * (1 - scale) - shear_x * h / 2
+    ty = h / 2 * (1 - scale) - shear_y * w / 2
+    coeffs = (scale, shear_x, tx, shear_y, scale, ty)
+    return img.transform((w, h), Image.AFFINE, coeffs, resample=Image.BICUBIC, fillcolor=(255, 255, 255))
+
+
+def _apply_lens_distortion(img_array, k1):
+    """镜头畸变模拟：桶形/枕形径向畸变（纯 numpy 双线性插值）"""
+    h, w = img_array.shape[:2]
+    cx, cy = (w - 1) / 2.0, (h - 1) / 2.0
+    y, x = np.mgrid[0:h, 0:w].astype(np.float32)
+    xn = (x - cx) / cx
+    yn = (y - cy) / cy
+    r2 = xn * xn + yn * yn
+    factor = 1.0 / (1.0 + k1 * r2)
+    x_src = cx + (x - cx) * factor
+    y_src = cy + (y - cy) * factor
+    x_src = np.clip(x_src, 0, w - 1)
+    y_src = np.clip(y_src, 0, h - 1)
+    x0 = np.floor(x_src).astype(np.int32)
+    y0 = np.floor(y_src).astype(np.int32)
+    x1 = np.clip(x0 + 1, 0, w - 1)
+    y1 = np.clip(y0 + 1, 0, h - 1)
+    wx = (x_src - x0).reshape(h, w, 1)
+    wy = (y_src - y0).reshape(h, w, 1)
+    result = np.zeros_like(img_array)
+    for c in range(3):
+        result[:, :, c] = (
+            (1 - wx[:,:,0]) * (1 - wy[:,:,0]) * img_array[y0, x0, c] +
+            wx[:,:,0] * (1 - wy[:,:,0]) * img_array[y0, x1, c] +
+            (1 - wx[:,:,0]) * wy[:,:,0] * img_array[y1, x0, c] +
+            wx[:,:,0] * wy[:,:,0] * img_array[y1, x1, c]
+        )
+    return result.astype(np.uint8)
+
+
+def _generate_gaussian_noise(img_array, sigma):
+    """高斯加权噪点：暗部噪点更明显，模拟 CMOS 传感器特性"""
+    h, w = img_array.shape[:2]
+    noise = np.random.normal(0, sigma, (h, w, 3)).astype(np.int16)
+    luminance = (0.299 * img_array[:, :, 0].astype(np.float32) +
+                 0.587 * img_array[:, :, 1].astype(np.float32) +
+                 0.114 * img_array[:, :, 2].astype(np.float32)) / 255.0
+    weight = 1.5 - 0.8 * luminance
+    weight = weight.reshape(h, w, 1)
+    return (noise * weight).astype(np.int16)
+
+
+def _detect_previous_processing(image_path):
+    """检测图片是否已被本工具处理过（检查 UserComment 中的位置标记）"""
+    try:
+        img = Image.open(image_path)
+        exif_raw = img.info.get("exif")
+        img.close()
+        if not exif_raw:
+            return False
+        exif = piexif.load(exif_raw)
+        user_comment = exif.get("Exif", {}).get(piexif.ExifIFD.UserComment, b"")
+        if isinstance(user_comment, bytes):
+            user_comment = user_comment.decode("utf-8", errors="ignore")
+        # 仅通过我们独有的特征判断：UserComment 中的 "Shooting Location"
+        if "Shooting Location" in str(user_comment):
+            return True
+    except Exception:
+        pass
+    return False
+
+
 # ====================== 核心函数 ======================
 def _verify_license_quick():
     """隐蔽的授权检查（不抛异常，返回 False 而非阻止，避免暴露检查点）"""
@@ -317,12 +411,18 @@ def _verify_license_quick():
 
 def process_image(image_path, skip_gps=False):
     global SELECTED_COUNTRY, SELECTED_CITY, SELECTED_GPS_MODE, SELECTED_GPS_DATA, COMPRESS_ENABLED, WATERMARK_ENABLED
+    global DEEP_ANTI_DUPLICATE_ENABLED, DEEP_MODE_VARIANTS, LOSSLESS_ENABLED
     if _on_status:
         _on_status("正在处理图片")
     img = None
     try:
         img = Image.open(image_path)
         original_width, original_height = img.size
+
+        # 自动检测二次处理
+        _prev_processed = DEEP_ANTI_DUPLICATE_ENABLED and _detect_previous_processing(image_path)
+        if _prev_processed and _on_status:
+            _on_status("检测到已处理图片，将深度重建指纹")
 
         # 剥离 ICC 配置（移除颜色指纹）
         img.info.pop('icc_profile', None)
@@ -336,9 +436,10 @@ def process_image(image_path, skip_gps=False):
             img = background
 
         # ---- JPEG 8x8 块对齐破坏：亚像素平移 ----
-        if ADVANCED_ANTI_DETECT_ENABLED:
-            shift_x = random.uniform(*BLOCK_SHIFT_RANGE) * random.choice([-1, 1])
-            shift_y = random.uniform(*BLOCK_SHIFT_RANGE) * random.choice([-1, 1])
+        if ADVANCED_ANTI_DETECT_ENABLED or DEEP_ANTI_DUPLICATE_ENABLED:
+            shift_range = DEEP_BLOCK_SHIFT_RANGE if DEEP_ANTI_DUPLICATE_ENABLED else BLOCK_SHIFT_RANGE
+            shift_x = random.uniform(*shift_range) * random.choice([-1, 1])
+            shift_y = random.uniform(*shift_range) * random.choice([-1, 1])
             img = img.transform(
                 img.size, Image.AFFINE,
                 (1, 0, shift_x, 0, 1, shift_y),
@@ -346,20 +447,25 @@ def process_image(image_path, skip_gps=False):
             )
 
         # ---- 防重处理：RGBA 一次转换，合并旋转+缩放+裁剪 ----
-        rotate_angle = random.uniform(*ROTATE_RANGE) * random.choice([-1, 1])
+        rot_range = DEEP_ROTATE_RANGE if DEEP_ANTI_DUPLICATE_ENABLED else ROTATE_RANGE
+        crop_ratio = DEEP_CROP_RATIO if DEEP_ANTI_DUPLICATE_ENABLED else CROP_RATIO
+        rotate_angle = random.uniform(*rot_range) * random.choice([-1, 1])
         img = img.convert("RGBA")
-        img = img.rotate(rotate_angle, expand=False, resample=Image.BICUBIC)
+        # expand=True 扩展画布避免旋转产生透明角 → 后续不会出现白边
+        img = img.rotate(rotate_angle, expand=True, resample=Image.BICUBIC)
+        # 居中裁切回原始尺寸
+        rw, rh = img.size
+        rl = (rw - original_width) // 2
+        rt = (rh - original_height) // 2
+        img = img.crop((rl, rt, rl + original_width, rt + original_height))
 
-        # 微缩放 + 微裁剪合并执行
-        scale_w = int(original_width * (1 + random.uniform(-0.001, 0.001)))
-        scale_h = int(original_height * (1 + random.uniform(-0.001, 0.001)))
-        crop_l = int(original_width * random.uniform(*CROP_RATIO))
-        crop_t = int(original_height * random.uniform(*CROP_RATIO))
-        crop_r = original_width - int(original_width * random.uniform(*CROP_RATIO))
-        crop_b = original_height - int(original_height * random.uniform(*CROP_RATIO))
-
-        img = img.resize((scale_w, scale_h), resample=Image.BICUBIC)
-        img = img.crop((crop_l, crop_t, crop_r, crop_b))
+        # 微裁剪
+        img = img.crop((
+            int(original_width * random.uniform(*crop_ratio)),
+            int(original_height * random.uniform(*crop_ratio)),
+            original_width - int(original_width * random.uniform(*crop_ratio)),
+            original_height - int(original_height * random.uniform(*crop_ratio)),
+        ))
         img = img.resize((original_width, original_height), resample=Image.BICUBIC)
 
         # RGBA → RGB（白底合成）
@@ -367,13 +473,26 @@ def process_image(image_path, skip_gps=False):
         background.paste(img, mask=img.split()[-1])
         img = background
 
-        # 边缘去白边：2px 裁剪消除仿射变换和旋转的白色残留
+        # 仿射剪切已移除——改用更强的旋转+畸变+噪点组合，无白边风险
+
+        # ---- 镜头畸变：模拟桶形/枕形畸变 ----
+        if DEEP_ANTI_DUPLICATE_ENABLED:
+            k1 = random.uniform(*DEEP_LENS_DISTORTION_RANGE)
+            if abs(k1) > 0.001:
+                img_array = np.array(img)
+                img_array = _apply_lens_distortion(img_array, k1)
+                img = Image.fromarray(img_array)
+
+        # 边缘去白边：2px 裁剪消除畸变残留
         img = img.crop((2, 2, original_width - 2, original_height - 2))
         img = img.resize((original_width, original_height), resample=Image.BICUBIC)
 
-        # ---- 像素域微调（高级防检测使用空间相关噪声模拟传感器） ----
+        # ---- 像素域微调 ----
         img_array = np.array(img, dtype=np.int16)
-        if ADVANCED_ANTI_DETECT_ENABLED:
+        if DEEP_ANTI_DUPLICATE_ENABLED:
+            sigma = random.uniform(*DEEP_NOISE_SIGMA_RANGE)
+            img_array += _generate_gaussian_noise(img_array, sigma)
+        elif ADVANCED_ANTI_DETECT_ENABLED:
             h, w = img_array.shape[:2]
             noise_amp = random.randint(*NOISE_AMP_RANGE)
             big_noise = np.random.randint(-noise_amp, noise_amp + 1, (h + 2, w + 2, 3), dtype=np.int16)
@@ -393,17 +512,20 @@ def process_image(image_path, skip_gps=False):
         img = img.filter(ImageFilter.GaussianBlur(radius=random.uniform(0.2, 0.4)))
         img = ImageEnhance.Sharpness(img).enhance(1.0 + random.uniform(0.1, 0.2))
 
-        # 亮度/对比度微调（高级防检测使用空间渐变模拟镜头暗角）
-        if ADVANCED_ANTI_DETECT_ENABLED:
+        # 亮度/对比度微调
+        if ADVANCED_ANTI_DETECT_ENABLED or DEEP_ANTI_DUPLICATE_ENABLED:
             img_array = np.array(img, dtype=np.float32)
             h, w = img_array.shape[:2]
             angle = random.uniform(0, 2 * np.pi)
-            steepness = random.uniform(*SPATIAL_BRIGHTNESS_STRENGTH)
+            spatial_str = DEEP_SPATIAL_BRIGHTNESS_STRENGTH if DEEP_ANTI_DUPLICATE_ENABLED else SPATIAL_BRIGHTNESS_STRENGTH
+            bright_range = DEEP_BRIGHTNESS_ADJUST if DEEP_ANTI_DUPLICATE_ENABLED else BRIGHTNESS_ADJUST
+            contrast_range = DEEP_CONTRAST_ADJUST if DEEP_ANTI_DUPLICATE_ENABLED else CONTRAST_ADJUST
+            steepness = random.uniform(*spatial_str)
             y_coords, x_coords = np.mgrid[0:h, 0:w]
             projection = x_coords * np.cos(angle) + y_coords * np.sin(angle)
             gradient = 1.0 + steepness * (projection / max(h, w) - 0.5)
-            bf = 1 + random.uniform(*BRIGHTNESS_ADJUST) / 100
-            cf = 1 + random.uniform(*CONTRAST_ADJUST) / 100
+            bf = 1 + random.uniform(*bright_range) / 100
+            cf = 1 + random.uniform(*contrast_range) / 100
             for c in range(3):
                 img_array[:, :, c] = (img_array[:, :, c] - 128) * cf * gradient + 128 * bf
             img_array = np.clip(img_array, 0, 255).astype(np.uint8)
@@ -415,10 +537,11 @@ def process_image(image_path, skip_gps=False):
             img = ImageEnhance.Contrast(img).enhance(cf)
 
         # ---- 色温偏置 + Gamma：模拟不同光线和曝光环境 ----
-        if ADVANCED_ANTI_DETECT_ENABLED:
+        if ADVANCED_ANTI_DETECT_ENABLED or DEEP_ANTI_DUPLICATE_ENABLED:
             img_array = np.array(img, dtype=np.float32)
-            # 暖色或冷色偏置 ±3%
-            warmth = random.uniform(-0.03, 0.03)
+            warmth_range = DEEP_WARMTH_RANGE if DEEP_ANTI_DUPLICATE_ENABLED else (-0.03, 0.03)
+            gamma_range = DEEP_GAMMA_RANGE if DEEP_ANTI_DUPLICATE_ENABLED else (0.97, 1.03)
+            warmth = random.uniform(*warmth_range)
             if warmth > 0:
                 img_array[:, :, 0] *= 1 + warmth
                 img_array[:, :, 2] *= 1 - warmth * 0.5
@@ -427,8 +550,7 @@ def process_image(image_path, skip_gps=False):
                 img_array[:, :, 0] *= 1 - abs(warmth) * 0.5
             img_array = np.clip(img_array, 0, 255).astype(np.uint8)
             img = Image.fromarray(img_array)
-            # Gamma 随机偏置：每张图的曝光曲线微不同
-            gamma = random.uniform(0.97, 1.03)
+            gamma = random.uniform(*gamma_range)
             if abs(gamma - 1.0) > 0.005:
                 img_array = np.array(img, dtype=np.float32) / 255.0
                 img_array = np.power(img_array, gamma) * 255.0
@@ -519,20 +641,6 @@ def process_image(image_path, skip_gps=False):
                     exif_dict["Exif"][piexif.ExifIFD.UserComment] = b"ASCII\x00\x00\x00" + loc
                     write_log(f"📍 已写入地理信息：{SELECTED_COUNTRY} {final_city} | {final_lat:.6f}, {final_lon:.6f}")
 
-                # EXIF 缩略图 + JPEG 注释（模拟真实相机元数据）
-                if ADVANCED_ANTI_DETECT_ENABLED:
-                    try:
-                        thumb = img.copy()
-                        thumb.thumbnail((160, 120))
-                        thumb_buf = io.BytesIO()
-                        thumb.save(thumb_buf, format="JPEG", quality=60)
-                        exif_dict["thumbnail"] = thumb_buf.getvalue()
-                        exif_dict["0th"][piexif.ImageIFD.XPComment] = \
-                            random.choice(["Edited with Snapseed", "VSCO", "Lightroom CC", "Photos", ""]).encode('utf-16-le')
-                    except Exception as e:
-                        write_log(f"EXIF缩略图跳过: {e}", "warning")
-
-                exif_bytes = piexif.dump(exif_dict)
             except Exception as e:
                 write_log(f"EXIF地理信息写入异常: {e}", "warning")
 
@@ -543,12 +651,15 @@ def process_image(image_path, skip_gps=False):
             if ratio:
                 tw, th = ratio
                 ow, oh = img.size
+                # 如果图片是竖版而目标是横版（或反之），自动翻转目标比例匹配图片方向
+                if (ow > oh) != (tw > th):
+                    tw, th = th, tw
                 cur_ratio = ow / oh
                 target_ratio = tw / th
                 diff_pct = abs(cur_ratio - target_ratio) / target_ratio
-                # 差不到 3% 跳过，最多裁 8%
+                # 差不到 3% 跳过，最多裁 5%
                 if diff_pct >= 0.03:
-                    crop_max = int(min(ow, oh) * 0.08)
+                    crop_max = int(min(ow, oh) * 0.05)
                     if ow / oh > target_ratio:
                         # 图片太宽：裁左右各一半
                         target_w = int(oh * target_ratio)
@@ -564,8 +675,27 @@ def process_image(image_path, skip_gps=False):
                             trim //= 2
                             img = img.crop((0, trim, ow, oh - trim))
 
+        # EXIF 缩略图 + dump（置於機模裁切之後，確保縮略圖與主圖一致）
+        exif_bytes = b""
+        if not skip_gps:
+            try:
+                if ADVANCED_ANTI_DETECT_ENABLED:
+                    try:
+                        thumb = img.copy()
+                        thumb.thumbnail((160, 120))
+                        thumb_buf = io.BytesIO()
+                        thumb.save(thumb_buf, format="JPEG", quality=60)
+                        exif_dict["thumbnail"] = thumb_buf.getvalue()
+                        exif_dict["0th"][piexif.ImageIFD.XPComment] = \
+                            random.choice(["Edited with Snapseed", "VSCO", "Lightroom CC", "Photos", ""]).encode('utf-16-le')
+                    except Exception as e:
+                        write_log(f"EXIF缩略图跳过: {e}", "warning")
+                exif_bytes = piexif.dump(exif_dict)
+            except Exception as e:
+                write_log(f"EXIF dump异常: {e}", "warning")
+
         # PNG 中间格式：破坏 JPEG 双重压缩痕迹
-        if ADVANCED_ANTI_DETECT_ENABLED:
+        if ADVANCED_ANTI_DETECT_ENABLED or DEEP_ANTI_DUPLICATE_ENABLED:
             try:
                 png_buf = io.BytesIO()
                 img.save(png_buf, format="PNG")
@@ -582,12 +712,11 @@ def process_image(image_path, skip_gps=False):
         elif COMPRESS_ENABLED:
             save_quality = random.randint(*COMPRESS_QUALITY_RANGE)
             subsampling = random.choice(SUBSAMPLING_OPTIONS)
+        elif DEEP_ANTI_DUPLICATE_ENABLED:
+            save_quality = random.randint(*DEEP_JPEG_QUALITY_RANGE)
+            subsampling = random.choice(SUBSAMPLING_OPTIONS)
         else:
-            # 高级模式：更宽的质量范围 + 随机优化，使量化表各次不同
-            if ADVANCED_ANTI_DETECT_ENABLED:
-                save_quality = random.randint(90, 98)
-            else:
-                save_quality = random.randint(*JPEG_QUALITY_RANGE)
+            save_quality = random.randint(*JPEG_QUALITY_RANGE)
             subsampling = random.choice(SUBSAMPLING_OPTIONS)
 
         temp_path = image_path + "_processed.jpg"
@@ -602,15 +731,32 @@ def process_image(image_path, skip_gps=False):
         with open(temp_path, "ab") as f:
             f.write(random.randbytes(random.randint(*APPEND_BYTES)))
 
-        new_filename = random_filename(".jpg")
+        # 深度模式：在重命名前计算与原图的指纹差异度
+        _score = None
+        if DEEP_ANTI_DUPLICATE_ENABLED:
+            try:
+                _orig = Image.open(image_path)
+                _out = Image.open(temp_path)
+                _os = np.array(_orig.resize((32, 32), Image.BICUBIC)).astype(np.float32)
+                _ds = np.array(_out.resize((32, 32), Image.BICUBIC)).astype(np.float32)
+                _score = int(np.abs(_os - _ds).mean() * 100 / 255)
+                _orig.close()
+                _out.close()
+            except:
+                pass
+
+        new_filename = (random_filename("") + f"_d{_score}.jpg") if _score is not None else random_filename(".jpg")
         new_path = os.path.join(os.path.dirname(image_path), new_filename)
         os.replace(temp_path, new_path)
         os.remove(image_path)
 
         file_size = round(os.path.getsize(new_path) / 1024, 2)
-        with open(new_path, "rb") as f:
-            new_md5 = hashlib.md5(f.read()).hexdigest()
-        write_log(f"✅ 防重处理成功 | {new_filename} | {file_size}KB | Q={save_quality} SS={subsampling} | MD5={new_md5[:12]}...", "success")
+        if _score is not None:
+            write_log(f"✅ 深度处理完成 | {new_filename} | 差异度 {_score} | {file_size}KB | Q={save_quality}", "success")
+        else:
+            with open(new_path, "rb") as f:
+                new_md5 = hashlib.md5(f.read()).hexdigest()
+            write_log(f"✅ 防重处理成功 | {new_filename} | {file_size}KB | Q={save_quality} SS={subsampling} | MD5={new_md5[:12]}...", "success")
         global TOTAL_IMAGES
         TOTAL_IMAGES += 1
         return True
