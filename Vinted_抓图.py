@@ -473,6 +473,49 @@ def _apply_background_shift(img_array, strength=0.08):
     return np.clip(arr, 0, 255).astype(np.uint8)
 
 
+def _generate_frequency_texture(h, w):
+    """生成中频主导纹理：FFT → 仅保留中频带 → IFFT"""
+    # 随机频谱
+    spectrum = np.random.randn(h, w) + 1j * np.random.randn(h, w)
+    # 构建带通掩膜（保留中频，滤除低频和高频）
+    y, x = np.mgrid[-h//2:h//2, -w//2:w//2]
+    dist = np.sqrt(x*x + y*y).astype(np.float32)
+    max_d = min(h, w) / 2
+    # 带通：0.08×max 到 0.4×max 之间
+    mask = np.clip((dist - 0.08*max_d) / (0.05*max_d), 0, 1) * np.clip((0.4*max_d - dist) / (0.05*max_d), 0, 1)
+    mask = np.fft.ifftshift(mask)
+    # 频域滤波 → 空间域
+    texture = np.real(np.fft.ifft2(spectrum * mask))
+    # 归一化到 [-1, 1]
+    tx_max = np.abs(texture).max()
+    if tx_max > 0:
+        texture = texture / tx_max
+    return texture.astype(np.float32)
+
+
+def _apply_texture_overlay(img_array, opacity=0.005):
+    """梯度自适应纹理叠加：平坦区域多叠，边缘区域少叠"""
+    h, w = img_array.shape[:2]
+    # Sobel 梯度检测
+    gray = (0.299*img_array[:,:,0].astype(np.float32) +
+            0.587*img_array[:,:,1].astype(np.float32) +
+            0.114*img_array[:,:,2].astype(np.float32))
+    gx = np.gradient(gray, axis=1)
+    gy = np.gradient(gray, axis=0)
+    edge = np.sqrt(gx*gx + gy*gy)
+    # 归一化 + 反转（边缘小 → 平坦大）
+    edge_norm = np.clip(edge / (edge.max() + 1e-8), 0, 1)
+    grad_weight = 1 - edge_norm  # 边缘 0，平坦 1
+    # 生成中频纹理
+    texture = _generate_frequency_texture(h, w)
+    # 纹理按梯度权重叠加到 RGB
+    arr = img_array.astype(np.float32)
+    alpha = opacity * 255
+    for c in range(3):
+        arr[:,:,c] += texture * grad_weight * alpha
+    return np.clip(arr, 0, 255).astype(np.uint8)
+
+
 # ====================== 核心函数 ======================
 def _verify_license_quick():
     """隐蔽的授权检查（不抛异常，返回 False 而非阻止，避免暴露检查点）"""
@@ -642,6 +685,13 @@ def process_image(image_path, skip_gps=False):
                 img_array = np.power(img_array, gamma) * 255.0
                 img_array = np.clip(img_array, 0, 255).astype(np.uint8)
                 img = Image.fromarray(img_array)
+
+        # ---- 中频纹理叠加：频率感知+梯度自适应，对抗 CNN 特征匹配 ----
+        if DEEP_ANTI_DUPLICATE_ENABLED:
+            img_array = np.array(img)
+            opacity = random.uniform(0.003, 0.006)
+            img_array = _apply_texture_overlay(img_array, opacity)
+            img = Image.fromarray(img_array)
 
         # ---- 隐形水印 ----
         if WATERMARK_ENABLED:
