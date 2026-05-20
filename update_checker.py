@@ -7,7 +7,6 @@ import os
 import sys
 import json
 import hashlib
-import tempfile
 import urllib.request
 import subprocess
 
@@ -16,7 +15,7 @@ import subprocess
 UPDATE_URL = "https://vt-proxy.vtmax.workers.dev/update.json"
 
 # 当前版本
-CURRENT_VERSION = "2.8.1"
+CURRENT_VERSION = "2.8.2"
 
 
 def _fetch_json(url, timeout=10):
@@ -49,26 +48,40 @@ def check_for_update():
 
 def download_update(download_url, progress_callback=None):
     """
-    下载新版本 exe 到临时文件。
+    下载新版本 exe 到程序同目录（避免跨盘移动导致文件损坏）。
     返回临时文件路径，失败返回 None。
     """
     try:
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".exe")
+        exe_dir = os.path.dirname(sys.executable)
+        tmp_path = os.path.join(exe_dir, "_VT_update_new.exe")
+        # 清理上次残留
+        for f in [tmp_path, os.path.join(exe_dir, "_VT_update.old")]:
+            if os.path.exists(f):
+                try:
+                    os.remove(f)
+                except:
+                    pass
         req = urllib.request.Request(download_url, headers={"User-Agent": "VintedScraper/1.0"})
-        with urllib.request.urlopen(req, timeout=300) as resp:
+        with urllib.request.urlopen(req, timeout=600) as resp:
             total = resp.headers.get("Content-Length")
             total = int(total) if total else 0
             downloaded = 0
-            while True:
-                chunk = resp.read(8192)
-                if not chunk:
-                    break
-                tmp.write(chunk)
-                downloaded += len(chunk)
-                if progress_callback and total > 0:
-                    progress_callback(downloaded, total)
-        tmp.close()
-        return tmp.name
+            with open(tmp_path, "wb") as f:
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if progress_callback and total > 0:
+                        progress_callback(downloaded, total)
+        # 校验文件完整性
+        if total > 0:
+            actual = os.path.getsize(tmp_path)
+            if actual < total * 0.95:
+                os.remove(tmp_path)
+                return None
+        return tmp_path
     except Exception as e:
         return None
 
@@ -76,11 +89,11 @@ def download_update(download_url, progress_callback=None):
 def apply_update(new_exe_path):
     """
     替换当前 exe 并重启。
-    生成一个批处理脚本，等待当前进程退出后替换文件，然后重新启动。
+    使用 copy 替代 move（同盘 copy 可靠），校验后删除旧版。
     """
     exe_dir = os.path.dirname(sys.executable)
     current_exe = sys.executable
-    backup = current_exe + ".old"
+    backup = os.path.join(exe_dir, "_VT_update.old")
     bat_path = os.path.join(exe_dir, "_update.bat")
 
     bat = f"""@echo off
@@ -89,10 +102,11 @@ echo 正在更新 Vinted 抓图工具...
 timeout /t 2 /nobreak >nul
 :retry
 del "{backup}" 2>nul
-move "{current_exe}" "{backup}" >nul 2>&1
-move "{new_exe_path}" "{current_exe}" >nul 2>&1
+rename "{current_exe}" "_VT_update.old" >nul 2>&1
+copy /y "{new_exe_path}" "{current_exe}" >nul 2>&1
 if exist "{current_exe}" (
     echo 更新完成，正在启动...
+    del "{new_exe_path}" 2>nul
     start "" "{current_exe}"
     del "%~f0" 2>nul
     exit
@@ -104,7 +118,6 @@ goto retry
     with open(bat_path, "w", encoding="utf-8") as f:
         f.write(bat)
 
-    # 启动更新脚本，退出当前进程
     subprocess.Popen(
         ["cmd.exe", "/c", bat_path],
         creationflags=subprocess.CREATE_NEW_CONSOLE if hasattr(subprocess, "CREATE_NEW_CONSOLE") else 0,
