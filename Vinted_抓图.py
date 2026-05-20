@@ -549,15 +549,10 @@ def process_image(image_path, skip_gps=False):
         background.paste(img, mask=img.split()[-1])
         img = background
 
-        # ---- 透视变形：四角随机偏移破坏 CNN 空间结构指纹 ----
-        if DEEP_ANTI_DUPLICATE_ENABLED:
-            persp_pct = random.uniform(0.003, 0.015)
-            img = _apply_perspective_proper(img, persp_pct)
-
-        # ---- 弹性局部扭曲：粗网格位移模拟拍摄角度微变 ----
+        # ---- 弹性局部扭曲：粗网格位移破坏 CNN 空间结构指纹 ----
         if DEEP_ANTI_DUPLICATE_ENABLED:
             img_array = np.array(img)
-            img_array = _apply_elastic_distortion(img_array, grid_size=6, max_disp=1.5)
+            img_array = _apply_elastic_distortion(img_array, grid_size=8, max_disp=2.0)
             img = Image.fromarray(img_array)
 
         # ---- 镜头畸变：模拟桶形/枕形畸变 ----

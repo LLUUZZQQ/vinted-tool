@@ -1027,10 +1027,11 @@ class VintedScraperGUI(QMainWindow):
         self._set_ui_running(False)
         self._worker = None
         self.status_label.setText(_tr("状态：已停止") if stopped else "处理完成")
+        _session_images = backend.TOTAL_IMAGES
         if not stopped:
             self._total_tasks += backend.TOTAL_TASKS
-            self._total_images += backend.TOTAL_IMAGES
-            backend.TOTAL_IMAGES = 0  # 本次已累加，归零下次算
+            self._total_images += _session_images
+            backend.TOTAL_IMAGES = 0
             self._save_config()
             self._update_stats_display()
 
@@ -1048,7 +1049,7 @@ class VintedScraperGUI(QMainWindow):
         features.append("  ✓  时空元数据注入")
         feature_text = "\n".join(features) if features else ""
 
-        info = f"处理商品：{total}    成功：{success}    失败：{fail}"
+        info = f"处理商品：{total}    采集图片：{_session_images}    成功：{success}    失败：{fail}"
         if feature_text:
             info += f"\n\n已应用处理：\n{feature_text}"
         if fail > 0 and backend.FAIL_REASONS:
@@ -1098,12 +1099,14 @@ class VintedScraperGUI(QMainWindow):
         self.chk_lossless.setEnabled(not running)
         self.chk_advanced_anti_detect.setEnabled(not running)
         self.chk_device_crop.setEnabled(not running)
+        self.chk_deep_anti_duplicate.setEnabled(not running)
         self.combo_device.setEnabled(not running)
         self.btn_local.setEnabled(not running)
         if not running:
             backend.STOP_TASK = False
             self.progress_bar.setMaximum(100)
             self.progress_bar.setValue(0)
+            self._update_dots()
 
     # ---- 日志 ----
     def _add_log(self, content, level="info"):
