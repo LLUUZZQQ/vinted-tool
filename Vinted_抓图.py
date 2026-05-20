@@ -397,6 +397,82 @@ def _detect_previous_processing(image_path):
     return False
 
 
+# ====================== 结构级变换（对抗 CNN 检测） ======================
+
+def _find_coeffs(pa, pb):
+    """从四对点计算 PIL PERSPECTIVE 8 系数矩阵"""
+    matrix = []
+    for p1, p2 in zip(pa, pb):
+        matrix.append([p1[0], p1[1], 1, 0, 0, 0, -p2[0]*p1[0], -p2[0]*p1[1]])
+        matrix.append([0, 0, 0, p1[0], p1[1], 1, -p2[1]*p1[0], -p2[1]*p1[1]])
+    A = np.array(matrix, dtype=np.float64)
+    B = np.array(pb, dtype=np.float64).reshape(8)
+    try:
+        coeffs = np.linalg.solve(A, B)
+        return tuple(coeffs.tolist())
+    except np.linalg.LinAlgError:
+        return (1,0,0,0,1,0,0,0)  # identity
+
+
+def _apply_perspective_proper(img, max_offset_pct):
+    """透视变形：四角随机偏移 + PIL PERSPECTIVE 8系数，正确实现无伪影"""
+    w, h = img.size
+    max_off = max(1, int(min(w, h) * max_offset_pct))
+    src_corners = [
+        (random.randint(0, max_off), random.randint(0, max_off)),
+        (w - 1 - random.randint(0, max_off), random.randint(0, max_off)),
+        (w - 1 - random.randint(0, max_off), h - 1 - random.randint(0, max_off)),
+        (random.randint(0, max_off), h - 1 - random.randint(0, max_off)),
+    ]
+    dst_corners = [(0,0), (w,0), (w,h), (0,h)]
+    coeffs = _find_coeffs(dst_corners, src_corners)
+    return img.transform((w, h), Image.PERSPECTIVE, coeffs, resample=Image.BICUBIC, fillcolor=(255,255,255))
+
+
+def _apply_elastic_distortion(img_array, grid_size=6, max_disp=1.5):
+    """弹性局部扭曲：粗网格随机位移 + 上采样，模拟拍摄角度微变（纯 numpy）"""
+    h, w = img_array.shape[:2]
+    gh, gw = grid_size, grid_size
+    dx = (np.random.rand(gh, gw) * 2 - 1) * max_disp
+    dy = (np.random.rand(gh, gw) * 2 - 1) * max_disp
+    # 简单上采样：重复像素 + 裁剪
+    dx_up = np.repeat(np.repeat(dx, int(np.ceil(h/gh)), axis=0)[:h,:],
+                      int(np.ceil(w/gw)), axis=1)[:h,:w].astype(np.float32)
+    dy_up = np.repeat(np.repeat(dy, int(np.ceil(h/gh)), axis=0)[:h,:],
+                      int(np.ceil(w/gw)), axis=1)[:h,:w].astype(np.float32)
+    y_idx, x_idx = np.mgrid[0:h, 0:w].astype(np.float32)
+    map_x = np.clip(x_idx + dy_up, 0, w-1)
+    map_y = np.clip(y_idx + dx_up, 0, h-1)
+    x0 = np.floor(map_x).astype(np.int32); y0 = np.floor(map_y).astype(np.int32)
+    x1 = np.clip(x0+1, 0, w-1); y1 = np.clip(y0+1, 0, h-1)
+    wx = (map_x - x0).astype(np.float32); wy = (map_y - y0).astype(np.float32)
+    result = np.zeros_like(img_array)
+    for c in range(3):
+        result[:,:,c] = ((1-wx)*(1-wy)*img_array[y0,x0,c] + wx*(1-wy)*img_array[y0,x1,c] +
+                         (1-wx)*wy*img_array[y1,x0,c] + wx*wy*img_array[y1,x1,c])
+    return result.astype(np.uint8)
+
+
+def _apply_background_shift(img_array, strength=0.08):
+    """背景渐变偏移：远离中心的区域叠加色温偏移"""
+    h, w = img_array.shape[:2]
+    cy, cx = (h-1)/2, (w-1)/2
+    max_dist = np.sqrt(cx*cx + cy*cy)
+    y, x = np.mgrid[0:h, 0:w].astype(np.float32)
+    dist = np.sqrt((x-cx)**2 + (y-cy)**2)
+    weight = np.clip((dist / max_dist - 0.5) * 2, 0, 1)
+    weight = weight.reshape(h, w, 1)
+    arr = img_array.astype(np.float32)
+    warmth = random.uniform(-strength, strength)
+    if warmth > 0:
+        arr[:,:,0] += weight[:,:,0] * warmth * 255
+        arr[:,:,2] -= weight[:,:,0] * warmth * 128
+    else:
+        arr[:,:,2] += weight[:,:,0] * abs(warmth) * 255
+        arr[:,:,0] -= weight[:,:,0] * abs(warmth) * 128
+    return np.clip(arr, 0, 255).astype(np.uint8)
+
+
 # ====================== 核心函数 ======================
 def _verify_license_quick():
     """隐蔽的授权检查（不抛异常，返回 False 而非阻止，避免暴露检查点）"""
@@ -473,7 +549,16 @@ def process_image(image_path, skip_gps=False):
         background.paste(img, mask=img.split()[-1])
         img = background
 
-        # 仿射剪切已移除——改用更强的旋转+畸变+噪点组合，无白边风险
+        # ---- 透视变形：四角随机偏移破坏 CNN 空间结构指纹 ----
+        if DEEP_ANTI_DUPLICATE_ENABLED:
+            persp_pct = random.uniform(0.003, 0.015)
+            img = _apply_perspective_proper(img, persp_pct)
+
+        # ---- 弹性局部扭曲：粗网格位移模拟拍摄角度微变 ----
+        if DEEP_ANTI_DUPLICATE_ENABLED:
+            img_array = np.array(img)
+            img_array = _apply_elastic_distortion(img_array, grid_size=6, max_disp=1.5)
+            img = Image.fromarray(img_array)
 
         # ---- 镜头畸变：模拟桶形/枕形畸变 ----
         if DEEP_ANTI_DUPLICATE_ENABLED:
@@ -486,6 +571,12 @@ def process_image(image_path, skip_gps=False):
         # 边缘去白边：2px 裁剪消除畸变残留
         img = img.crop((2, 2, original_width - 2, original_height - 2))
         img = img.resize((original_width, original_height), resample=Image.BICUBIC)
+
+        # ---- 背景渐变偏移：边缘区域色温微变，不影响主体 ----
+        if DEEP_ANTI_DUPLICATE_ENABLED:
+            img_array = np.array(img)
+            img_array = _apply_background_shift(img_array, strength=0.08)
+            img = Image.fromarray(img_array)
 
         # ---- 像素域微调 ----
         img_array = np.array(img, dtype=np.int16)

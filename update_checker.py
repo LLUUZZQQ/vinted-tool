@@ -15,7 +15,7 @@ import subprocess
 UPDATE_URL = "https://vt-proxy.vtmax.workers.dev/update.json"
 
 # 当前版本
-CURRENT_VERSION = "2.8.7"
+CURRENT_VERSION = "2.9.0"
 
 
 def _fetch_json(url, timeout=10):
