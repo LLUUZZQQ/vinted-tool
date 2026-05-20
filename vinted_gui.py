@@ -14,8 +14,7 @@ from PySide6.QtWidgets import (
     QMessageBox, QDialog, QFrame,
 )
 from PySide6.QtCore import Qt, Signal, QThread, QTimer, QMimeData
-from PySide6.QtGui import QFont, QPixmap
-from PySide6.QtWidgets import QSplashScreen
+from PySide6.QtGui import QFont
 import Vinted_抓图 as backend
 import license_system as license_mgr
 import update_checker
@@ -1251,24 +1250,6 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("VintedScraper")
 
-    # 启动闪屏（全部文字直接绘制，不用 showMessage 避免残留）
-    from PySide6.QtGui import QPainter, QColor, QFont as QF
-    splash_img = QPixmap(440, 200)
-    splash_img.fill(Qt.black)
-    p = QPainter(splash_img)
-    p.setPen(QColor(255, 255, 255))
-    p.setFont(QF("Microsoft YaHei", 18, QF.Bold))
-    p.drawText(splash_img.rect().adjusted(0, 50, 0, 0), Qt.AlignHCenter | Qt.AlignTop, "VT MAX")
-    p.setPen(QColor(180, 180, 180))
-    p.setFont(QF("Microsoft YaHei", 11))
-    p.drawText(splash_img.rect().adjusted(0, 95, 0, 0), Qt.AlignHCenter | Qt.AlignTop, "VT 图像重构 MAX")
-    p.drawText(splash_img.rect().adjusted(0, 140, 0, 0), Qt.AlignHCenter | Qt.AlignTop, "引擎启动中…")
-    p.end()
-    splash = QSplashScreen(splash_img)
-    splash.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
-    splash.show()
-    app.processEvents()
-
     # 反调试检测
     if license_mgr.is_debugger_present():
         QMessageBox.critical(None, "安全警告", "检测到调试或逆向工具，软件无法启动。")
@@ -1289,7 +1270,6 @@ def main():
     license_mgr.start_background_check(900)
 
     window = VintedScraperGUI()
-    splash.finish(window)
     # 在主窗口设置定时器显示授权状态（后台检测到篡改时关闭）
     tamper_timer = QTimer(window)
     tamper_timer.timeout.connect(lambda: _check_tamper(window))
