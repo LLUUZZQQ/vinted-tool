@@ -42,7 +42,7 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
     pyz, a.scripts, a.binaries, a.zipfiles, a.datas, [],
-    name='VT_ImageMAX',
+    name='ImageMAX',
     debug=False,
     bootloader_ignore_signals=False,
     strip=True,

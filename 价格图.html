@@ -3,66 +3,167 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=720">
-<title>VTMAX 价格</title>
+<title>图像重构MAX 价格</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #0a0a0a; display: flex; justify-content: center; padding: 40px; }
-.card { background: #111; border-radius: 20px; padding: 48px 40px; max-width: 720px; width: 100%; }
-.header { text-align: center; margin-bottom: 40px; }
-.header .brand { font-size: 28px; font-weight: 800; color: #fff; letter-spacing: 2px; }
-.header .sub { font-size: 13px; color: #666; margin-top: 4px; }
-.grid { display: flex; gap: 10px; flex-wrap: wrap; }
-.tier { flex: 1; min-width: 120px; background: #1a1a1a; border-radius: 14px; padding: 24px 16px; text-align: center; position: relative; border: 1px solid #222; transition: .2s; }
-.tier:hover { border-color: #444; }
-.tier.best { border-color: #333; background: #1c1c1c; }
-.tier.best::before { content: "推荐"; position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #fff; color: #000; font-size: 11px; font-weight: 700; padding: 3px 12px; border-radius: 20px; }
-.name { font-size: 13px; color: #888; margin-bottom: 8px; }
-.price { font-size: 28px; font-weight: 700; color: #fff; }
-.price .unit { font-size: 13px; color: #666; font-weight: 400; }
-.per { font-size: 11px; color: #555; margin-top: 6px; }
-.save { font-size: 11px; color: #4ade80; margin-top: 4px; min-height: 16px; }
-.footer { text-align: center; margin-top: 32px; color: #555; font-size: 12px; }
+
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif;
+  background: #060606;
+  display: flex;
+  justify-content: center;
+  padding: 48px 24px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.card {
+  background: linear-gradient(180deg, #0d0d0d 0%, #0a0a0a 100%);
+  border: 1px solid #1a1a1a;
+  border-radius: 24px;
+  padding: 56px 48px;
+  max-width: 760px;
+  width: 100%;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.03), 0 40px 80px rgba(0,0,0,.6);
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.header .brand {
+  font-size: 30px;
+  font-weight: 800;
+  color: #f0f0f0;
+  letter-spacing: 3px;
+}
+
+.header .divider {
+  width: 48px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent);
+  margin: 16px auto;
+}
+
+.header .sub {
+  font-size: 13px;
+  color: #555;
+  letter-spacing: 1px;
+}
+
+.grid {
+  display: flex;
+  gap: 12px;
+}
+
+.tier {
+  flex: 1;
+  background: #111;
+  border-radius: 16px;
+  padding: 28px 14px 24px;
+  text-align: center;
+  border: 1px solid #1e1e1e;
+  transition: all .3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.tier::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  opacity: 0;
+  transition: opacity .3s;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255,255,255,.025) 0%, transparent 70%);
+}
+
+.tier:hover {
+  border-color: #333;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+}
+
+.tier:hover::after { opacity: 1; }
+
+.tier.best {
+  background: linear-gradient(180deg, #1a1a1a 0%, #131313 100%);
+  border-color: #2a2a2a;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 0 60px rgba(255,255,255,.015);
+}
+
+.name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #bbb;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+}
+
+.tier.best .name {
+  color: #e0e0e0;
+}
+
+.price {
+  font-size: 32px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+
+.price .unit {
+  font-size: 14px;
+  color: #555;
+  font-weight: 400;
+  margin-right: 2px;
+}
+
+.tier.best .price {
+  background: linear-gradient(180deg, #fff 30%, #c0c0c0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.footer {
+  text-align: center;
+  margin-top: 40px;
+  color: #444;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+@media (max-width: 680px) {
+  .grid { flex-wrap: wrap; }
+  .tier { min-width: calc(50% - 6px); }
+}
 </style>
 </head>
 <body>
 <div class="card">
-    <div class="header">
-        <div class="brand">VT图像重构MAX</div>
-        <div class="sub">图像智能处理系统 · 定价方案</div>
+  <div class="header">
+    <div class="brand">图像重构MAX</div>
+    <div class="divider"></div>
+    <div class="sub">图像智能处理系统</div>
+  </div>
+
+  <div class="grid">
+    <div class="tier">
+      <div class="name">7天</div>
+      <div class="price"><span class="unit">¥</span>8</div>
     </div>
-    <div class="grid">
-        <div class="tier">
-            <div class="name">7天 体验</div>
-            <div class="price"><span class="unit">¥</span>8</div>
-            <div class="per">日均 ¥1.14</div>
-            <div class="save"></div>
-        </div>
-        <div class="tier">
-            <div class="name">30天 月度</div>
-            <div class="price"><span class="unit">¥</span>18</div>
-            <div class="per">日均 ¥0.60</div>
-            <div class="save"></div>
-        </div>
-        <div class="tier">
-            <div class="name">90天 季度</div>
-            <div class="price"><span class="unit">¥</span>45</div>
-            <div class="per">日均 ¥0.50</div>
-            <div class="save">省 ¥9</div>
-        </div>
-        <div class="tier">
-            <div class="name">180天 半年</div>
-            <div class="price"><span class="unit">¥</span>78</div>
-            <div class="per">日均 ¥0.43</div>
-            <div class="save">省 ¥30</div>
-        </div>
-        <div class="tier best">
-            <div class="name">365天 年度</div>
-            <div class="price"><span class="unit">¥</span>128</div>
-            <div class="per">日均 ¥0.35</div>
-            <div class="save">省 ¥88</div>
-        </div>
+    <div class="tier">
+      <div class="name">30天</div>
+      <div class="price"><span class="unit">¥</span>18</div>
     </div>
-    <div class="footer">微信：UU_L777777</div>
+    <div class="tier best">
+      <div class="name">365天</div>
+      <div class="price"><span class="unit">¥</span>128</div>
+    </div>
+  </div>
+
+  <div class="footer">微信：UU_L777777</div>
 </div>
 </body>
 </html>

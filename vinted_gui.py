@@ -30,7 +30,7 @@ _RELEASE_DICT = {
     "任务操作": "执行控制",
     "运行日志": "处理记录",
     # 标签
-    "商品链接（一行一个）：": "Vinted 商品链接：",
+    "商品链接（一行一个）：": "商品链接：",
     "保存路径：": "存储路径：",
     "拍摄地理：": "地理信息：",
     "有效链接：": "队列：",
@@ -197,7 +197,7 @@ class ActivationDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._activated = False
-        self.setWindowTitle("VT图像重构MAX — 软件激活")
+        self.setWindowTitle("图像重构MAX — 软件激活")
         self.setFixedSize(440, 400)
         self.setWindowFlags(Qt.Dialog | Qt.MSWindowsFixedSizeDialogHint)
         self.setStyleSheet("""
@@ -227,7 +227,7 @@ class ActivationDialog(QDialog):
         root.setSpacing(0)
 
         # ---- 标题 ----
-        brand = QLabel("VT MAX")
+        brand = QLabel("图像重构MAX")
         brand.setAlignment(Qt.AlignCenter)
         brand.setStyleSheet("font-size: 20px; font-weight: 700; color: #111111;")
         root.addWidget(brand)
@@ -403,7 +403,7 @@ class VintedScraperGUI(QMainWindow):
         self._local_worker = None
         self._geo_setting_up = False
 
-        self.setWindowTitle(f"VT图像重构MAX v{update_checker.CURRENT_VERSION} · 已就绪")
+        self.setWindowTitle(f"图像重构MAX v{update_checker.CURRENT_VERSION} · 已就绪")
         # 窗口图标
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app_icon.ico")
         if not os.path.exists(icon_path):
@@ -557,7 +557,7 @@ class VintedScraperGUI(QMainWindow):
         lo.addLayout(top)
 
         self.txt_urls = DropPlainTextEdit()
-        self.txt_urls.setPlaceholderText(_tr("粘贴 Vinted 商品链接，一行一个...（也可拖拽 .txt 文件）"))
+        self.txt_urls.setPlaceholderText(_tr("粘贴商品链接，一行一个...（也可拖拽 .txt 文件）"))
         self.txt_urls.setMaximumHeight(68)
         lo.addWidget(self.txt_urls)
 
@@ -811,7 +811,7 @@ class VintedScraperGUI(QMainWindow):
     # ---- URL 管理 ----
     def _update_url_count(self):
         text = self.txt_urls.toPlainText()
-        urls = [u.strip() for u in text.split("\n") if u.strip() and "vinted." in u]
+        urls = [u.strip() for u in text.split("\n") if u.strip() and "http" in u]
         self.url_count_label.setText(f"有效链接：{len(list(dict.fromkeys(urls)))}")
 
     def _on_file_dropped(self, path):
@@ -960,9 +960,9 @@ class VintedScraperGUI(QMainWindow):
             return QMessageBox.warning(self, "警告", "请输入至少一个商品链接！")
         # 校验链接格式
         urls = [u.strip() for u in text.split("\n") if u.strip()]
-        valid = [u for u in urls if "vinted." in u]
+        valid = [u for u in urls if "http" in u]
         if not valid:
-            return QMessageBox.warning(self, "警告", "未检测到有效的 Vinted 商品链接！\n\n链接应包含 vinted.fr 或 vinted.com")
+            return QMessageBox.warning(self, "警告", "未检测到有效的商品链接！\n\n请确认链接格式正确")
         save_path = self.entry_path.text().strip() or backend.DEFAULT_SAVE_ROOT
         if not os.path.exists(save_path):
             if QMessageBox.Yes != QMessageBox.question(self, "提示", f"目录不存在，是否创建？\n{save_path}"):
@@ -1315,7 +1315,7 @@ class VintedScraperGUI(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-    app.setApplicationName("VintedScraper")
+    app.setApplicationName("ImageMAX")
     # 任务栏图标
     icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app_icon.ico")
     if not os.path.exists(icon_path):

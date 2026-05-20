@@ -32,7 +32,7 @@ from selenium.common.exceptions import TimeoutException
 # ====================== 基础配置（核心参数完全不动） ======================
 PROXY = ""
 MANUAL_WAIT_TIME = 3
-DEFAULT_SAVE_ROOT = "Vinted_Processed_Images"
+DEFAULT_SAVE_ROOT = "Processed_Images"
 # 图片防重复核心参数
 CROP_RATIO = (0.002, 0.005)
 ROTATE_RANGE = (0.1, 0.3)
@@ -792,7 +792,7 @@ def _ensure_chrome():
         pass
 
     # 2. 已有缓存的便携版
-    chrome_dir = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "VTMAX", "chrome")
+    chrome_dir = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "ImageMAX", "chrome")
     chrome_exe = os.path.join(chrome_dir, "chrome.exe")
     if os.path.exists(chrome_exe):
         return chrome_exe
@@ -1247,7 +1247,7 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
         f.write("")
 
     write_log("=" * 50)
-    write_log("Vinted 防重复终极版启动 v2", "info")
+    write_log("图像重构引擎启动", "info")
     write_log(f"📂 保存路径：{save_root}", "info")
     if SELECTED_CITY == "全国随机":
         write_log(f"📍 地理模式：全国随机（{SELECTED_COUNTRY}）", "info")
@@ -1257,10 +1257,10 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
     write_log(f"🛡️  高级防检测：{'开' if ADVANCED_ANTI_DETECT_ENABLED else '关'}", "info")
     write_log(f"🚀 加速：浏览器复用 + 并发下载×{DOWNLOAD_WORKERS}", "info")
 
-    urls = list(dict.fromkeys([u.strip() for u in urls_text.split("\n") if u.strip() and "vinted." in u]))
+    urls = list(dict.fromkeys([u.strip() for u in urls_text.split("\n") if u.strip() and "http" in u]))
     TOTAL_TASKS = len(urls)
     if not urls:
-        write_log("❌ 请输入至少一个有效的 Vinted 商品链接！", "error")
+        write_log("❌ 请输入至少一个有效的商品链接！", "error")
         if _on_finished:
             _on_finished(stopped=False)
         return

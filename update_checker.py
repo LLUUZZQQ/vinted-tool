@@ -15,12 +15,12 @@ import subprocess
 UPDATE_URL = "https://vt-proxy.vtmax.workers.dev/update.json"
 
 # 当前版本
-CURRENT_VERSION = "2.8.2"
+CURRENT_VERSION = "2.8.3"
 
 
 def _fetch_json(url, timeout=10):
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "VintedScraper/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "ImageMAX/1.0"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))
     except Exception:
@@ -53,15 +53,15 @@ def download_update(download_url, progress_callback=None):
     """
     try:
         exe_dir = os.path.dirname(sys.executable)
-        tmp_path = os.path.join(exe_dir, "_VT_update_new.exe")
+        tmp_path = os.path.join(exe_dir, "_update_new.exe")
         # 清理上次残留
-        for f in [tmp_path, os.path.join(exe_dir, "_VT_update.old")]:
+        for f in [tmp_path, os.path.join(exe_dir, "_update.old")]:
             if os.path.exists(f):
                 try:
                     os.remove(f)
                 except:
                     pass
-        req = urllib.request.Request(download_url, headers={"User-Agent": "VintedScraper/1.0"})
+        req = urllib.request.Request(download_url, headers={"User-Agent": "ImageMAX/1.0"})
         with urllib.request.urlopen(req, timeout=600) as resp:
             total = resp.headers.get("Content-Length")
             total = int(total) if total else 0
@@ -93,16 +93,16 @@ def apply_update(new_exe_path):
     """
     exe_dir = os.path.dirname(sys.executable)
     current_exe = sys.executable
-    backup = os.path.join(exe_dir, "_VT_update.old")
+    backup = os.path.join(exe_dir, "_update.old")
     bat_path = os.path.join(exe_dir, "_update.bat")
 
     bat = f"""@echo off
 chcp 65001 >nul
-echo 正在更新 Vinted 抓图工具...
+echo 正在更新...
 timeout /t 2 /nobreak >nul
 :retry
 del "{backup}" 2>nul
-rename "{current_exe}" "_VT_update.old" >nul 2>&1
+rename "{current_exe}" "_update.old" >nul 2>&1
 copy /y "{new_exe_path}" "{current_exe}" >nul 2>&1
 if exist "{current_exe}" (
     echo 更新完成，正在启动...
