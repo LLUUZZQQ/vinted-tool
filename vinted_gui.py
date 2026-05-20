@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QLabel, QLineEdit, QPlainTextEdit, QComboBox,
     QCheckBox, QPushButton, QProgressBar, QFileDialog, QMenu,
-    QMessageBox, QDialog, QFrame,
+    QMessageBox, QDialog, QFrame, QSizePolicy,
 )
 from PySide6.QtCore import Qt, Signal, QThread, QTimer, QMimeData
 from PySide6.QtGui import QFont, QIcon
@@ -634,9 +634,10 @@ class VintedScraperGUI(QMainWindow):
         self._dots = {}
         def _add_chk(layout, text, tip):
             chk = QCheckBox(_tr(text)); chk.setToolTip(tip)
-            dot = QLabel(); dot.setFixedSize(4,4); dot.setStyleSheet("background:#10b981;border-radius:2px;margin-left:-2px;")
+            chk.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            dot = QLabel(); dot.setFixedSize(4,4); dot.setStyleSheet("background:#10b981;border-radius:2px;")
             wrap = QWidget(); wrap.setStyleSheet("background:transparent;")
-            hh = QHBoxLayout(wrap); hh.setContentsMargins(0,0,0,0); hh.setSpacing(0)
+            hh = QHBoxLayout(wrap); hh.setContentsMargins(0,0,0,0); hh.setSpacing(1)
             hh.addWidget(chk); hh.addWidget(dot)
             hh.setAlignment(dot, Qt.AlignTop)
             layout.addWidget(wrap)
