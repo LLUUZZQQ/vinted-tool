@@ -143,8 +143,8 @@ DEEP_MODE_VARIANTS = 2               # 深度模式输出版本数（1-3）
 DEEP_ROTATE_RANGE = (1.2, 2.5)
 DEEP_CROP_RATIO = (0.015, 0.04)
 DEEP_NOISE_SIGMA_RANGE = (3, 8)
-DEEP_BRIGHTNESS_ADJUST = (-2.0, 2.0)
-DEEP_CONTRAST_ADJUST = (-2.0, 2.0)
+DEEP_BRIGHTNESS_ADJUST = (-4.0, 4.0)
+DEEP_CONTRAST_ADJUST = (-4.0, 4.0)
 DEEP_JPEG_QUALITY_RANGE = (85, 94)
 DEEP_BLOCK_SHIFT_RANGE = (1.5, 3.0)
 DEEP_SPATIAL_BRIGHTNESS_STRENGTH = (0.004, 0.01)
@@ -566,8 +566,8 @@ def _apply_local_liquefy(img_array, num_points=4, max_disp=2):
 
 
 def _apply_lab_shift(img_array, ab_shift=3):
-    """LAB色域变换：AB通道微平移，L不变，CNN颜色敏感度高（float64 消除累积误差）"""
-    rgb = img_array.astype(np.float64) / 255.0
+    """LAB色域变换：AB通道微平移，L不变，CNN颜色敏感度高"""
+    rgb = img_array.astype(np.float32) / 255.0
     # RGB → XYZ
     mask = rgb > 0.04045
     rgb_lin = np.where(mask, ((rgb + 0.055) / 1.055) ** 2.4, rgb / 12.92)
@@ -684,11 +684,7 @@ def process_image(image_path, skip_gps=False):
             img_array = _apply_elastic_distortion(img_array, grid_size=8, max_disp=2.0)
             img = Image.fromarray(img_array)
 
-        # ---- 局部液化变形：随机锚点高斯位移，模拟面料微变形 ----
-        if DEEP_ANTI_DUPLICATE_ENABLED:
-            img_array = np.array(img)
-            img_array = _apply_local_liquefy(img_array, num_points=4, max_disp=2)
-            img = Image.fromarray(img_array)
+        # 局部液化已移除：均值偏移大、产生色阶断层
 
         # ---- 镜头畸变：模拟桶形/枕形畸变 ----
         if DEEP_ANTI_DUPLICATE_ENABLED:
@@ -705,7 +701,7 @@ def process_image(image_path, skip_gps=False):
         # ---- 背景渐变偏移：边缘区域色温微变，不影响主体 ----
         if DEEP_ANTI_DUPLICATE_ENABLED:
             img_array = np.array(img)
-            img_array = _apply_background_shift(img_array, strength=0.04)
+            img_array = _apply_background_shift(img_array, strength=0.08)
             img = Image.fromarray(img_array)
 
         # ---- 像素域微调 ----
@@ -781,7 +777,7 @@ def process_image(image_path, skip_gps=False):
         # ---- 随机光影渐变：模拟不同方向/色温光源照射 ----
         if DEEP_ANTI_DUPLICATE_ENABLED:
             img_array = np.array(img)
-            strength = random.uniform(0.005, 0.015)
+            strength = random.uniform(0.01, 0.03)
             img_array = _apply_lighting_gradient(img_array, strength)
             img = Image.fromarray(img_array)
 
@@ -792,11 +788,7 @@ def process_image(image_path, skip_gps=False):
             img_array = _apply_texture_overlay(img_array, opacity)
             img = Image.fromarray(img_array)
 
-        # ---- LAB 色域变换：AB通道微平移，CNN颜色敏感度高 ----
-        if DEEP_ANTI_DUPLICATE_ENABLED:
-            img_array = np.array(img)
-            img_array = _apply_lab_shift(img_array, ab_shift=3)
-            img = Image.fromarray(img_array)
+        # LAB色域变换已移除：gamma转换累积误差导致严重banding/clipping
 
         # ---- 隐形水印 ----
         if WATERMARK_ENABLED:
