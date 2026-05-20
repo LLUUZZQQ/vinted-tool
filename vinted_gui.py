@@ -237,7 +237,7 @@ class ActivationDialog(QDialog):
         # 技术标签
         tech_row = QHBoxLayout()
         tech_row.setSpacing(4)
-        for t in ["AI 深度重构", "JPEG 指纹重建", "时空元数据", "画幅智能匹配"]:
+        for t in ["AI 深度重构", "JPEG 指纹重建", "时空元数据", "画幅智能匹配", "…等"]:
             l = QLabel(t)
             l.setAlignment(Qt.AlignCenter)
             l.setStyleSheet("font-size: 9px; color: #999; background: transparent; border: 1px solid #e0e0e0; border-radius: 3px; padding: 1px 6px;")
