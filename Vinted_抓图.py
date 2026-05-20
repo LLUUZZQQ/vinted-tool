@@ -191,8 +191,10 @@ def random_filename(ext=".jpg"):
 DEVICE_LIST = [
     "随机",
     # Apple
-    "iPhone 15 Pro Max", "iPhone 15 Pro", "iPhone 15", "iPhone 14 Pro", "iPhone 14",
-    "iPhone 13 Pro", "iPhone 13", "iPhone SE",
+    "iPhone 17 Pro Max", "iPhone 17 Pro", "iPhone 17",
+    "iPhone 16 Pro Max", "iPhone 16 Pro", "iPhone 16",
+    "iPhone 15 Pro Max", "iPhone 15 Pro", "iPhone 15",
+    "iPhone 14 Pro", "iPhone 14", "iPhone 13 Pro", "iPhone 13", "iPhone SE",
     # Samsung (欧洲销量第一)
     "Galaxy S24 Ultra", "Galaxy S24", "Galaxy S23 Ultra", "Galaxy S23",
     "Galaxy A55", "Galaxy A54", "Galaxy A35",
@@ -231,6 +233,12 @@ def _get_device_ratio(device):
 
 DEVICE_INFO_MAP = {
     # Apple
+    "iPhone 17 Pro Max": ("Apple", "iPhone 17 Pro Max", "Photos"),
+    "iPhone 17 Pro": ("Apple", "iPhone 17 Pro", "Photos"),
+    "iPhone 17": ("Apple", "iPhone 17", "Photos"),
+    "iPhone 16 Pro Max": ("Apple", "iPhone 16 Pro Max", "Photos"),
+    "iPhone 16 Pro": ("Apple", "iPhone 16 Pro", "Photos"),
+    "iPhone 16": ("Apple", "iPhone 16", "Photos"),
     "iPhone 15 Pro Max": ("Apple", "iPhone 15 Pro Max", "Photos"),
     "iPhone 15 Pro": ("Apple", "iPhone 15 Pro", "Photos"),
     "iPhone 15": ("Apple", "iPhone 15", "Photos"),

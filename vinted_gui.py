@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QMessageBox, QDialog, QFrame,
 )
 from PySide6.QtCore import Qt, Signal, QThread, QTimer, QMimeData
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QIcon
 import Vinted_抓图 as backend
 import license_system as license_mgr
 import update_checker
@@ -402,6 +402,14 @@ class VintedScraperGUI(QMainWindow):
         self._geo_setting_up = False
 
         self.setWindowTitle(f"VT图像重构MAX v{update_checker.CURRENT_VERSION} · 已就绪")
+        # 窗口图标
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app_icon.ico")
+        if not os.path.exists(icon_path):
+            frozen = getattr(sys, '_MEIPASS', None)
+            if frozen:
+                icon_path = os.path.join(frozen, "app_icon.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
         if RELEASE_MODE:
             self.setMinimumSize(440, 530)
             self.setMaximumHeight(530)
@@ -1249,6 +1257,14 @@ class VintedScraperGUI(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("VintedScraper")
+    # 任务栏图标
+    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app_icon.ico")
+    if not os.path.exists(icon_path):
+        frozen = getattr(sys, '_MEIPASS', None)
+        if frozen:
+            icon_path = os.path.join(frozen, "app_icon.ico")
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
 
     # 反调试检测
     if license_mgr.is_debugger_present():
