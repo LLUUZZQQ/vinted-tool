@@ -634,9 +634,9 @@ class VintedScraperGUI(QMainWindow):
         self._dots = {}
         def _add_chk(layout, text, tip):
             chk = QCheckBox(_tr(text)); chk.setToolTip(tip)
-            dot = QLabel(); dot.setFixedSize(4,4); dot.setStyleSheet("background:#10b981;border-radius:2px;")
+            dot = QLabel(); dot.setFixedSize(4,4); dot.setStyleSheet("background:#10b981;border-radius:2px;margin-left:-2px;")
             wrap = QWidget(); wrap.setStyleSheet("background:transparent;")
-            hh = QHBoxLayout(wrap); hh.setContentsMargins(0,0,0,0); hh.setSpacing(2)
+            hh = QHBoxLayout(wrap); hh.setContentsMargins(0,0,0,0); hh.setSpacing(0)
             hh.addWidget(chk); hh.addWidget(dot)
             hh.setAlignment(dot, Qt.AlignTop)
             layout.addWidget(wrap)
