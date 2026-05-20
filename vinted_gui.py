@@ -1251,19 +1251,21 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("VintedScraper")
 
-    # 启动闪屏
+    # 启动闪屏（全部文字直接绘制，不用 showMessage 避免残留）
     from PySide6.QtGui import QPainter, QColor, QFont as QF
     splash_img = QPixmap(440, 200)
     splash_img.fill(Qt.black)
     p = QPainter(splash_img)
-    # 大字 VT MAX
     p.setPen(QColor(255, 255, 255))
     p.setFont(QF("Microsoft YaHei", 18, QF.Bold))
     p.drawText(splash_img.rect().adjusted(0, 50, 0, 0), Qt.AlignHCenter | Qt.AlignTop, "VT MAX")
+    p.setPen(QColor(180, 180, 180))
+    p.setFont(QF("Microsoft YaHei", 11))
+    p.drawText(splash_img.rect().adjusted(0, 95, 0, 0), Qt.AlignHCenter | Qt.AlignTop, "VT 图像重构 MAX")
+    p.drawText(splash_img.rect().adjusted(0, 140, 0, 0), Qt.AlignHCenter | Qt.AlignTop, "引擎启动中…")
     p.end()
     splash = QSplashScreen(splash_img)
     splash.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
-    splash.showMessage("\n\n\n\nVT 图像重构 MAX\n引擎启动中…", Qt.AlignCenter, Qt.white)
     splash.show()
     app.processEvents()
 
