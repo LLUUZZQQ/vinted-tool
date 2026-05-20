@@ -110,7 +110,7 @@ def get_hwid():
 
 _LICENSE_DIR = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "ImageMAX")
 _LICENSE_PATH = os.path.join(_LICENSE_DIR, "license.dat")
-_LICENSE_NONCE = b"imagemax_v3_2026"
+_LICENSE_NONCE = b"vinted_scraper_v3_2026"
 
 
 def _derive_aes_key(hwid_raw):
