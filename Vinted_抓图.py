@@ -516,6 +516,92 @@ def _apply_texture_overlay(img_array, opacity=0.005):
     return np.clip(arr, 0, 255).astype(np.uint8)
 
 
+def _apply_lighting_gradient(img_array, strength=0.02):
+    """随机光影渐变：模拟不同方向和色温的光源，视觉上只是光线微不同"""
+    h, w = img_array.shape[:2]
+    angle = random.uniform(0, 2 * np.pi)
+    y, x = np.mgrid[0:h, 0:w].astype(np.float32)
+    proj = x * np.cos(angle) + y * np.sin(angle)
+    proj_norm = (proj - proj.min()) / (proj.max() - proj.min() + 1e-8)  # 0→1
+    gradient = (proj_norm * 2 - 1).reshape(h, w, 1)  # -1 → 1
+    arr = img_array.astype(np.float32)
+    warmth = random.uniform(-0.5, 0.5)  # 暖色或冷色
+    s = strength * 255
+    if warmth > 0:
+        arr[:,:,0] += gradient[:,:,0] * s * (1 + warmth)
+        arr[:,:,2] += gradient[:,:,0] * s * (1 - warmth)
+    else:
+        arr[:,:,2] += gradient[:,:,0] * s * (1 + abs(warmth))
+        arr[:,:,0] += gradient[:,:,0] * s * (1 - abs(warmth))
+    return np.clip(arr, 0, 255).astype(np.uint8)
+
+
+def _apply_local_liquefy(img_array, num_points=4, max_disp=2):
+    """局部液化变形：随机锚点+高斯径向位移，模拟面料微变形"""
+    h, w = img_array.shape[:2]
+    result = img_array.astype(np.float32).copy()
+    for _ in range(num_points):
+        cx = random.randint(w//6, 5*w//6)
+        cy = random.randint(h//6, 5*h//6)
+        dx = random.uniform(-max_disp, max_disp)
+        dy = random.uniform(-max_disp, max_disp)
+        sigma = random.uniform(min(w,h)*0.06, min(w,h)*0.12)
+        y_idx, x_idx = np.mgrid[0:h, 0:w].astype(np.float32)
+        dist2 = (x_idx - cx)**2 + (y_idx - cy)**2
+        weight = np.exp(-dist2 / (2 * sigma * sigma)).reshape(h, w, 1)
+        result[:,:,0] += weight[:,:,0] * dx
+        result[:,:,1] += weight[:,:,0] * dy
+    # 双线性重采样
+    y_src = np.tile(np.arange(h, dtype=np.float32).reshape(h,1), (1,w)) + result[:,:,1]
+    x_src = np.tile(np.arange(w, dtype=np.float32).reshape(1,w), (h,1)) + result[:,:,0]
+    x_src = np.clip(x_src, 0, w-1); y_src = np.clip(y_src, 0, h-1)
+    x0 = np.floor(x_src).astype(np.int32); y0 = np.floor(y_src).astype(np.int32)
+    x1 = np.clip(x0+1, 0, w-1); y1 = np.clip(y0+1, 0, h-1)
+    wx = (x_src - x0).astype(np.float32); wy = (y_src - y0).astype(np.float32)
+    out = np.zeros_like(img_array)
+    for c in range(3):
+        out[:,:,c] = ((1-wx)*(1-wy)*img_array[y0,x0,c] + wx*(1-wy)*img_array[y0,x1,c] +
+                       (1-wx)*wy*img_array[y1,x0,c] + wx*wy*img_array[y1,x1,c])
+    return out.astype(np.uint8)
+
+
+def _apply_lab_shift(img_array, ab_shift=3):
+    """LAB色域变换：AB通道微平移，L不变，CNN颜色敏感度高"""
+    rgb = img_array.astype(np.float32) / 255.0
+    # RGB → XYZ
+    mask = rgb > 0.04045
+    rgb_lin = np.where(mask, ((rgb + 0.055) / 1.055) ** 2.4, rgb / 12.92)
+    xyz = np.zeros_like(rgb_lin)
+    xyz[:,:,0] = 0.4124564*rgb_lin[:,:,0] + 0.3575761*rgb_lin[:,:,1] + 0.1804375*rgb_lin[:,:,2]
+    xyz[:,:,1] = 0.2126729*rgb_lin[:,:,0] + 0.7151522*rgb_lin[:,:,1] + 0.0721750*rgb_lin[:,:,2]
+    xyz[:,:,2] = 0.0193339*rgb_lin[:,:,0] + 0.1191920*rgb_lin[:,:,1] + 0.9503041*rgb_lin[:,:,2]
+    # XYZ → LAB (D65)
+    xn, yn, zn = 0.95047, 1.0, 1.08883
+    fx = _lab_f(xyz[:,:,0]/xn); fy = _lab_f(xyz[:,:,1]/yn); fz = _lab_f(xyz[:,:,2]/zn)
+    L = 116*fy - 16
+    A = 500*(fx - fy) + random.uniform(-ab_shift, ab_shift)
+    B = 200*(fy - fz) + random.uniform(-ab_shift, ab_shift)
+    # LAB → RGB
+    fy2 = (L + 16) / 116
+    fx2 = A / 500 + fy2; fz2 = fy2 - B / 200
+    x2 = xn * _lab_finv(fx2); y2 = yn * _lab_finv(fy2); z2 = zn * _lab_finv(fz2)
+    rgb_lin2 = np.zeros_like(rgb_lin)
+    rgb_lin2[:,:,0] =  3.2404542*x2 - 1.5371385*y2 - 0.4985314*z2
+    rgb_lin2[:,:,1] = -0.9692660*x2 + 1.8760108*y2 + 0.0415560*z2
+    rgb_lin2[:,:,2] =  0.0556434*x2 - 0.2040259*y2 + 1.0572252*z2
+    rgb_lin2 = np.clip(rgb_lin2, 0, 1)
+    m2 = rgb_lin2 > 0.0031308
+    rgb2 = np.where(m2, 1.055 * (rgb_lin2 ** (1/2.4)) - 0.055, 12.92 * rgb_lin2)
+    return np.clip(rgb2 * 255, 0, 255).astype(np.uint8)
+
+def _lab_f(t):
+    d = (6/29)**3
+    return np.where(t > d, t**(1/3), t/(3*29*29/6/6) + 4/29)
+def _lab_finv(t):
+    d = 6/29
+    return np.where(t > d, t**3, 3*d*d*(t - 4/29))
+
+
 # ====================== 核心函数 ======================
 def _verify_license_quick():
     """隐蔽的授权检查（不抛异常，返回 False 而非阻止，避免暴露检查点）"""
@@ -596,6 +682,12 @@ def process_image(image_path, skip_gps=False):
         if DEEP_ANTI_DUPLICATE_ENABLED:
             img_array = np.array(img)
             img_array = _apply_elastic_distortion(img_array, grid_size=8, max_disp=2.0)
+            img = Image.fromarray(img_array)
+
+        # ---- 局部液化变形：随机锚点高斯位移，模拟面料微变形 ----
+        if DEEP_ANTI_DUPLICATE_ENABLED:
+            img_array = np.array(img)
+            img_array = _apply_local_liquefy(img_array, num_points=4, max_disp=2)
             img = Image.fromarray(img_array)
 
         # ---- 镜头畸变：模拟桶形/枕形畸变 ----
@@ -686,11 +778,24 @@ def process_image(image_path, skip_gps=False):
                 img_array = np.clip(img_array, 0, 255).astype(np.uint8)
                 img = Image.fromarray(img_array)
 
+        # ---- 随机光影渐变：模拟不同方向/色温光源照射 ----
+        if DEEP_ANTI_DUPLICATE_ENABLED:
+            img_array = np.array(img)
+            strength = random.uniform(0.01, 0.03)
+            img_array = _apply_lighting_gradient(img_array, strength)
+            img = Image.fromarray(img_array)
+
         # ---- 中频纹理叠加：频率感知+梯度自适应，对抗 CNN 特征匹配 ----
         if DEEP_ANTI_DUPLICATE_ENABLED:
             img_array = np.array(img)
             opacity = random.uniform(0.003, 0.006)
             img_array = _apply_texture_overlay(img_array, opacity)
+            img = Image.fromarray(img_array)
+
+        # ---- LAB 色域变换：AB通道微平移，CNN颜色敏感度高 ----
+        if DEEP_ANTI_DUPLICATE_ENABLED:
+            img_array = np.array(img)
+            img_array = _apply_lab_shift(img_array, ab_shift=3)
             img = Image.fromarray(img_array)
 
         # ---- 隐形水印 ----
