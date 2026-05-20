@@ -413,12 +413,12 @@ class VintedScraperGUI(QMainWindow):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         if RELEASE_MODE:
-            self.setMinimumSize(440, 530)
-            self.setMaximumHeight(530)
-            self.resize(500, 530)
+            self.setMinimumSize(440, 570)
+            self.setMaximumHeight(570)
+            self.resize(500, 570)
         else:
-            self.setMinimumSize(440, 600)
-            self.resize(500, 650)
+            self.setMinimumSize(440, 650)
+            self.resize(500, 700)
 
         screen = QApplication.primaryScreen().geometry()
         self.move((screen.width() - 500) // 2, (screen.height() - self.height()) // 2)
@@ -635,15 +635,17 @@ class VintedScraperGUI(QMainWindow):
         def _add_chk(layout, text, tip):
             chk = QCheckBox(_tr(text)); chk.setToolTip(tip)
             dot = QLabel(); dot.setFixedSize(4,4); dot.setStyleSheet("background:#10b981;border-radius:2px;")
-            layout.addWidget(chk)
-            layout.addWidget(dot)
-            layout.setAlignment(dot, Qt.AlignTop)
+            wrap = QWidget(); wrap.setStyleSheet("background:transparent;")
+            hh = QHBoxLayout(wrap); hh.setContentsMargins(0,0,0,0); hh.setSpacing(2)
+            hh.addWidget(chk); hh.addWidget(dot)
+            hh.setAlignment(dot, Qt.AlignTop)
+            layout.addWidget(wrap)
             self._dots[chk] = dot
             return chk
 
         # 行 3：复选框行1
         r3 = QHBoxLayout()
-        r3.setSpacing(6)
+        r3.setSpacing(10)
 
         self.chk_compress   = _add_chk(r3, "智能压缩", "智能画质优化，适度降低文件大小")
         self.chk_lossless   = _add_chk(r3, "无损画质", "原画输出，quality=100")
@@ -657,7 +659,7 @@ class VintedScraperGUI(QMainWindow):
 
         # 行 3b：复选框行2
         r3b = QHBoxLayout()
-        r3b.setSpacing(6)
+        r3b.setSpacing(10)
 
         self.chk_device_crop = _add_chk(r3b, "机模画幅匹配", "根据随机设备型号裁切到原生画幅比例")
         self.combo_device = QComboBox()
