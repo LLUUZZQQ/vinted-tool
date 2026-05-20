@@ -529,6 +529,12 @@ class VintedScraperGUI(QMainWindow):
         if not RELEASE_MODE:
             self._build_log_section(root)
 
+        # 技术规格脚注
+        footer = QLabel(f"v{update_checker.CURRENT_VERSION} · 多维数字指纹重建 · 自适应传感器模拟 · 12 级深度处理管线 · 57 组终端特征库 · 全球地理元数据注入 · 等多项核心技术")
+        footer.setStyleSheet("font-size:10px; color:#888; background:transparent; padding:0 4px 2px 4px;")
+        footer.setAlignment(Qt.AlignCenter)
+        root.addWidget(footer)
+
     # ---- 模块 1：商品链接管理 ----
     def _build_url_section(self, parent):
         g = QGroupBox(_tr("商品链接管理"))
@@ -616,21 +622,33 @@ class VintedScraperGUI(QMainWindow):
         r2.addWidget(self.combo_mode, 1)
         lo.addLayout(r2)
 
+        # 能力标签行
+        tag_row = QHBoxLayout()
+        tag_label = QLabel("数字指纹重建 · 图像结构重组 · EXIF元数据注入 · 镜头畸变模拟 · 色温Gamma校正 · 传感器噪声模拟 · 等多项核心处理")
+        tag_label.setStyleSheet("font-size:10px; color:#999; background:transparent; padding:2px 0;")
+        tag_row.addWidget(tag_label)
+        tag_row.addStretch()
+        lo.addLayout(tag_row)
+
+        # 指示灯
+        self._dots = {}
+        def _add_chk(layout, text, tip):
+            chk = QCheckBox(_tr(text)); chk.setToolTip(tip)
+            dot = QLabel(); dot.setFixedSize(4,4); dot.setStyleSheet("background:#10b981;border-radius:2px;")
+            layout.addWidget(chk)
+            layout.addWidget(dot)
+            layout.setAlignment(dot, Qt.AlignTop)
+            self._dots[chk] = dot
+            return chk
+
         # 行 3：复选框行1
         r3 = QHBoxLayout()
-        r3.setSpacing(10)
-        self.chk_compress = QCheckBox(_tr("智能压缩"))
-        self.chk_compress.setToolTip("智能画质优化，适度降低文件大小")
-        r3.addWidget(self.chk_compress)
-        self.chk_lossless = QCheckBox(_tr("无损画质"))
-        self.chk_lossless.setToolTip("原画输出，quality=100")
-        r3.addWidget(self.chk_lossless)
-        self.chk_watermark = QCheckBox(_tr("隐形水印"))
-        self.chk_watermark.setToolTip("添加防重数字水印")
-        r3.addWidget(self.chk_watermark)
-        self.chk_advanced_anti_detect = QCheckBox(_tr("高级防检测"))
-        self.chk_advanced_anti_detect.setToolTip("AI 防护引擎")
-        r3.addWidget(self.chk_advanced_anti_detect)
+        r3.setSpacing(6)
+
+        self.chk_compress   = _add_chk(r3, "智能压缩", "智能画质优化，适度降低文件大小")
+        self.chk_lossless   = _add_chk(r3, "无损画质", "原画输出，quality=100")
+        self.chk_watermark  = _add_chk(r3, "隐形水印", "添加防重数字水印")
+        self.chk_advanced_anti_detect = _add_chk(r3, "高级防检测", "AI 防护引擎")
         r3.addStretch()
         self.btn_reset = QPushButton(_tr("恢复默认"))
         self.btn_reset.setObjectName("btnSecondary")
@@ -639,20 +657,17 @@ class VintedScraperGUI(QMainWindow):
 
         # 行 3b：复选框行2
         r3b = QHBoxLayout()
-        r3b.setSpacing(10)
-        self.chk_device_crop = QCheckBox(_tr("机模画幅匹配"))
-        self.chk_device_crop.setToolTip("根据随机设备型号裁切到原生画幅比例")
-        r3b.addWidget(self.chk_device_crop)
+        r3b.setSpacing(6)
+
+        self.chk_device_crop = _add_chk(r3b, "机模画幅匹配", "根据随机设备型号裁切到原生画幅比例")
         self.combo_device = QComboBox()
         self.combo_device.addItems(backend.DEVICE_LIST)
         self.combo_device.setToolTip("选择模拟设备型号")
         self.combo_device.wheelEvent = lambda e: e.ignore()
         self.combo_device.setMaximumWidth(160)
         r3b.addWidget(self.combo_device)
-        r3b.addSpacing(16)
-        self.chk_deep_anti_duplicate = QCheckBox(_tr("深度防重处理"))
-        self.chk_deep_anti_duplicate.setToolTip("仿射剪切+镜头畸变+参数增强，针对平台重复检测重建图像指纹")
-        r3b.addWidget(self.chk_deep_anti_duplicate)
+        r3b.addSpacing(10)
+        self.chk_deep_anti_duplicate = _add_chk(r3b, "深度防重处理", "仿射剪切+镜头畸变+参数增强，针对平台重复检测重建图像指纹")
         lbl_var = QLabel(_tr("输出版本数"))
         lbl_var.setStyleSheet("font-size:12px; color:#888; background:transparent;")
         r3b.addWidget(lbl_var)
@@ -770,6 +785,7 @@ class VintedScraperGUI(QMainWindow):
         self.combo_device.setCurrentText(self._device_model)
         self.chk_deep_anti_duplicate.setChecked(self._deep_anti_duplicate)
         self.combo_variants.setCurrentText(str(self._deep_variants))
+        self._update_dots()
         self._geo_setting_up = False
         if getattr(self, '_restore_urls', ''):
             self.txt_urls.setPlainText(self._restore_urls)
@@ -906,11 +922,13 @@ class VintedScraperGUI(QMainWindow):
         backend.COMPRESS_ENABLED = v
         if v:
             self.chk_lossless.setChecked(False)
+        self._update_dots()
         self._save_config()
 
     def _on_watermark_toggled(self, v):
         self._watermark = v
         backend.WATERMARK_ENABLED = v
+        self._update_dots()
         self._save_config()
 
     def _on_lossless_toggled(self, v):
@@ -918,16 +936,19 @@ class VintedScraperGUI(QMainWindow):
         backend.LOSSLESS_ENABLED = v
         if v:
             self.chk_compress.setChecked(False)
+        self._update_dots()
         self._save_config()
 
     def _on_advanced_anti_detect_toggled(self, v):
         self._advanced_anti_detect = v
         backend.ADVANCED_ANTI_DETECT_ENABLED = v
+        self._update_dots()
         self._save_config()
 
     def _on_device_crop_toggled(self, v):
         self._device_crop = v
         backend.DEVICE_CROP_ENABLED = v
+        self._update_dots()
         self._save_config()
 
     def _on_device_changed(self, text):
@@ -935,9 +956,14 @@ class VintedScraperGUI(QMainWindow):
         backend.SELECTED_DEVICE = text
         self._save_config()
 
+    def _update_dots(self):
+        for chk, dot in self._dots.items():
+            dot.setStyleSheet(f"background:{'#10b981' if chk.isChecked() else '#444'};border-radius:2px;")
+
     def _on_deep_anti_duplicate_toggled(self, v):
         self._deep_anti_duplicate = v
         backend.DEEP_ANTI_DUPLICATE_ENABLED = v
+        self._update_dots()
         self._save_config()
 
     def _on_variants_changed(self, text):
