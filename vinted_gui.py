@@ -637,10 +637,11 @@ class VintedScraperGUI(QMainWindow):
             chk.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
             dot = QLabel(); dot.setFixedSize(4,4); dot.setStyleSheet("background:#10b981;border-radius:2px;")
             wrap = QWidget(); wrap.setStyleSheet("background:transparent;")
+            wrap.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
             hh = QHBoxLayout(wrap); hh.setContentsMargins(0,0,0,0); hh.setSpacing(1)
             hh.addWidget(chk); hh.addWidget(dot)
             hh.setAlignment(dot, Qt.AlignTop)
-            layout.addWidget(wrap)
+            layout.addWidget(wrap, 0, Qt.AlignLeft)
             self._dots[chk] = dot
             return chk
 
