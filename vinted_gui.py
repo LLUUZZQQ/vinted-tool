@@ -530,7 +530,7 @@ class VintedScraperGUI(QMainWindow):
             self._build_log_section(root)
 
         # 技术规格脚注
-        footer = QLabel(f"v{update_checker.CURRENT_VERSION} · 多维数字指纹重建 · 自适应传感器模拟 · 12 级深度处理管线 · 57 组终端特征库 · 全球地理元数据注入 · 等多项核心技术")
+        footer = QLabel(f"v{update_checker.CURRENT_VERSION} · 多维数字指纹重建 · 自适应传感器模拟 · 12 级深度处理管线 · 等多项核心技术")
         footer.setStyleSheet("font-size:10px; color:#888; background:transparent; padding:0 4px 2px 4px;")
         footer.setAlignment(Qt.AlignCenter)
         root.addWidget(footer)
@@ -624,7 +624,7 @@ class VintedScraperGUI(QMainWindow):
 
         # 能力标签行
         tag_row = QHBoxLayout()
-        tag_label = QLabel("数字指纹重建 · 图像结构重组 · EXIF元数据注入 · 镜头畸变模拟 · 色温Gamma校正 · 传感器噪声模拟 · 等多项核心处理")
+        tag_label = QLabel("图像结构重组 · EXIF元数据注入 · 色温Gamma校正 · 传感器噪声模拟 · 等多项核心处理")
         tag_label.setStyleSheet("font-size:10px; color:#999; background:transparent; padding:2px 0;")
         tag_row.addWidget(tag_label)
         tag_row.addStretch()
