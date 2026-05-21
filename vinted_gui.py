@@ -737,6 +737,11 @@ class VintedScraperGUI(QMainWindow):
         self.btn_local = QPushButton(_tr("本地防重 ▾"))
         self.btn_local.setObjectName("btnSecondary")
         btn.addWidget(self.btn_local)
+        self.btn_ai_bg = QPushButton("AI 背景替换")
+        self.btn_ai_bg.setObjectName("btnSecondary")
+        self.btn_ai_bg.setStyleSheet("QPushButton#btnSecondary { color: #10b981; border-color: #10b981; } QPushButton#btnSecondary:hover { background-color: #ecfdf5; }")
+        self.btn_ai_bg.clicked.connect(self._show_ai_bg_dialog)
+        btn.addWidget(self.btn_ai_bg)
         lo.addLayout(btn)
 
         parent.addWidget(g)
@@ -1086,6 +1091,13 @@ class VintedScraperGUI(QMainWindow):
         if self._total_tasks > 0:
             self.stats_label.setText(f"累计 {self._total_tasks} 次采集 · {self._total_images} 张图像")
 
+    def _show_ai_bg_dialog(self):
+        QMessageBox.information(self, "AI 背景替换",
+            "该功能正在紧锣密鼓地开发中，即将与您见面。\n\n"
+            "借助最先进的AI大模型，为您一键替换图片背景，\n"
+            "模拟个人卖家的真实拍摄场景，效果以假乱真。\n\n"
+            "敬请期待！")
+
     def _set_ui_running(self, running):
         self.btn_start.setEnabled(not running)
         self.btn_stop.setEnabled(running)
@@ -1102,6 +1114,7 @@ class VintedScraperGUI(QMainWindow):
         self.chk_deep_anti_duplicate.setEnabled(not running)
         self.combo_device.setEnabled(not running)
         self.btn_local.setEnabled(not running)
+        self.btn_ai_bg.setEnabled(not running)
         if not running:
             backend.STOP_TASK = False
             self.progress_bar.setMaximum(100)
