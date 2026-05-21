@@ -1017,138 +1017,101 @@ def process_image(image_path, skip_gps=False):
 
 
 def _ensure_chrome():
-    """确保 Chrome 可用。返回 (chrome_binary_path)"""
+    """确保 Chrome + ChromeDriver 可用，返回 (chrome_path, chromedriver_path)"""
     import zipfile, io as _io
 
-    # 1. 已有缓存的便携版（优先，避免系统Chrome版本不匹配）
     chrome_dir = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "ImageMAX", "chrome")
     chrome_exe = os.path.join(chrome_dir, "chrome.exe")
-    if os.path.exists(chrome_exe):
-        return chrome_exe
+    driver_exe = os.path.join(chrome_dir, "chromedriver.exe")
 
-    # 2. 扫描系统常见Chrome安装路径
-    sys_paths = [
-        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
-    ]
-    for p in sys_paths:
-        if os.path.exists(p):
-            return p  # 显式返回路径，不用binary_location
+    # 两者都已缓存 → 直接返回
+    if os.path.exists(chrome_exe) and os.path.exists(driver_exe):
+        return chrome_exe, driver_exe
 
-    # 3. 自动下载便携版
-    write_log("首次使用需下载运行环境（约 180MB，仅此一次，请耐心等待）...", "info")
+    write_log("首次使用需下载运行环境（约 180MB，仅此一次）...", "info")
     if _on_status:
         _on_status("首次使用，正在准备运行环境...")
     try:
         os.makedirs(chrome_dir, exist_ok=True)
-        # 获取下载地址
+
+        # 获取 Chrome + ChromeDriver 下载地址（同版本，保证匹配）
         api = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json"
         resp = requests.get(api, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
         data = resp.json()
-        for ch in data.get("channels", {}).get("Stable", {}).get("downloads", {}).get("chrome", []):
-            if ch["platform"] == "win64":
-                chrome_url = ch["url"]
+        channel = data.get("channels", {}).get("Stable", {})
+        chrome_url = driver_url = None
+        for c in channel.get("downloads", {}).get("chrome", []):
+            if c["platform"] == "win64":
+                chrome_url = c["url"]
                 break
-        else:
+        for d in channel.get("downloads", {}).get("chromedriver", []):
+            if d["platform"] == "win64":
+                driver_url = d["url"]
+                break
+        if not chrome_url or not driver_url:
             raise Exception("无法获取下载地址")
-        # 下载
-        zip_path = os.path.join(chrome_dir, "chrome.zip")
-        r = requests.get(chrome_url, headers={"User-Agent": "Mozilla/5.0"}, stream=True, timeout=600)
-        total = int(r.headers.get("Content-Length", 0))
-        downloaded = 0
-        with open(zip_path, "wb") as f:
-            for chunk in r.iter_content(chunk_size=65536):
-                f.write(chunk)
-                downloaded += len(chunk)
-                if total > 0 and _on_status:
-                    pct = downloaded * 100 // total
-                    mb = downloaded // (1024*1024)
-                    total_mb = total // (1024*1024)
-                    if pct == 0 or pct == 100 or pct % 10 == 0:
-                        _on_status(f"正在准备运行环境 {mb}/{total_mb}MB ({pct}%)")
-        # 解压
-        write_log("正在安装运行环境...", "info")
-        if _on_status:
-            _on_status("正在安装运行环境...")
-        with zipfile.ZipFile(zip_path) as z:
-            root = z.namelist()[0].split("/")[0]
-            for name in z.namelist():
-                if name.endswith("/"):
-                    continue
-                dest = os.path.join(chrome_dir, name[len(root)+1:])
-                os.makedirs(os.path.dirname(dest), exist_ok=True)
-                with z.open(name) as src, open(dest, "wb") as dst:
-                    dst.write(src.read())
-        os.remove(zip_path)
-        if os.path.exists(chrome_exe):
-            write_log("运行环境就绪，下次启动无需等待", "success")
-            return chrome_exe
-        raise Exception("解压后未找到 chrome.exe")
+
+        # 下载 Chrome
+        if not os.path.exists(chrome_exe):
+            _download_and_extract(chrome_url, chrome_dir, "Chrome")
+        # 下载 ChromeDriver
+        if not os.path.exists(driver_exe):
+            _download_and_extract(driver_url, chrome_dir, "ChromeDriver")
+
+        # 解压后 chromedriver 可能在子目录，移动到根
+        for root, dirs, files in os.walk(chrome_dir):
+            for f in files:
+                if f == "chromedriver.exe" and os.path.join(root, f) != driver_exe:
+                    import shutil
+                    shutil.move(os.path.join(root, f), driver_exe)
+                    break
+
+        if os.path.exists(chrome_exe) and os.path.exists(driver_exe):
+            write_log("运行环境就绪", "success")
+            return chrome_exe, driver_exe
+        raise Exception("环境文件缺失")
     except Exception as e:
         write_log(f"环境准备失败: {e}", "error")
-        raise Exception(
-            "运行环境准备失败，请检查网络连接\n\n"
-            "或手动安装 Google Chrome 浏览器后重试"
-        )
+        raise Exception("运行环境准备失败，请检查网络连接")
+
+
+def _download_and_extract(url, target_dir, label):
+    """下载 ZIP 并解压到目标目录"""
+    import zipfile
+    zip_path = os.path.join(target_dir, f"_{label}.zip")
+    r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, stream=True, timeout=600)
+    total = int(r.headers.get("Content-Length", 0))
+    downloaded = 0
+    with open(zip_path, "wb") as f:
+        for chunk in r.iter_content(chunk_size=65536):
+            f.write(chunk)
+            downloaded += len(chunk)
+            if total > 0 and _on_status:
+                pct = min(downloaded * 100 // total, 100)
+                if pct % 20 == 0:
+                    _on_status(f"下载{label} {pct}%")
+    with zipfile.ZipFile(zip_path) as z:
+        root = z.namelist()[0].split("/")[0]
+        for name in z.namelist():
+            if name.endswith("/"):
+                continue
+            dest = os.path.join(target_dir, name[len(root)+1:])
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            with z.open(name) as src, open(dest, "wb") as dst:
+                dst.write(src.read())
+    os.remove(zip_path)
 
 
 def init_chrome(debug_mode):
     if _on_status:
         _on_status("正在启动浏览器")
 
-    # 确保 Chrome 可用（无 Chrome 则自动下载便携版）
-    chrome_binary = _ensure_chrome()
-
-    # 获取 chromedriver 路径：优先自动匹配，再回退捆绑
-    driver_path = None
-    # 1. webdriver-manager 自动下载匹配版本（最可靠）
-    try:
-        from webdriver_manager.chrome import ChromeDriverManager
-        raw = ChromeDriverManager().install()
-        if raw and os.path.exists(raw):
-            if raw.endswith('.exe'):
-                driver_path = raw
-            else:
-                # 某些版本返回声明文件路径，修正到同目录 chromedriver.exe
-                d = os.path.dirname(raw)
-                exe = os.path.join(d, 'chromedriver.exe')
-                if os.path.exists(exe):
-                    driver_path = exe
-    except:
-        pass
-    # 2. 捆绑的 chromedriver
-    if not driver_path:
-        frozen_dir = getattr(sys, '_MEIPASS', None)
-        if frozen_dir:
-            bundled = os.path.join(frozen_dir, 'chromedriver.exe')
-            exe_dir = os.path.dirname(sys.executable)
-            target = os.path.join(exe_dir, 'chromedriver.exe')
-            if not os.path.exists(target) and os.path.exists(bundled):
-                try:
-                    shutil.copy2(bundled, target)
-                except:
-                    pass
-            if os.path.exists(target):
-                driver_path = target
-            elif os.path.exists(bundled):
-                driver_path = bundled
-        if not driver_path:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            local = os.path.join(script_dir, 'chromedriver.exe')
-            if os.path.exists(local):
-                driver_path = local
-    # 3. 系统 PATH
-    if driver_path:
-        service = Service(executable_path=driver_path)
-    else:
-        try:
-            service = Service()
-        except:
-            raise Exception("Chromedriver 未找到，请检查网络连接")
+    # 自管理 Chrome + ChromeDriver（同版本，永不冲突）
+    chrome_binary, driver_path = _ensure_chrome()
+    service = Service(executable_path=driver_path)
 
     options = webdriver.ChromeOptions()
-    options.binary_location = chrome_binary  # 始终指定路径，不依赖系统默认
+    options.binary_location = chrome_binary
     if not debug_mode:
         options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
