@@ -1017,31 +1017,24 @@ def process_image(image_path, skip_gps=False):
 
 
 def _ensure_chrome():
-    """确保 Chrome 可用。返回 (chrome_binary_path 或 None)"""
+    """确保 Chrome 可用。返回 (chrome_binary_path)"""
     import zipfile, io as _io
-    # 1. 系统已安装 → 直接用
-    try:
-        out = subprocess.run(
-            ['reg', 'query', r'HKEY_CURRENT_USER\Software\Google\Chrome\BLBeacon', '/v', 'version'],
-            capture_output=True, text=True, timeout=5
-        )
-        if 'version' in out.stdout:
-            return None
-    except:
-        pass
-    try:
-        import winreg
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"SOFTWARE\Google\Chrome\BLBeacon") as k:
-            winreg.QueryValueEx(k, "version")
-            return None
-    except:
-        pass
 
-    # 2. 已有缓存的便携版
+    # 1. 已有缓存的便携版（优先，避免系统Chrome版本不匹配）
     chrome_dir = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "ImageMAX", "chrome")
     chrome_exe = os.path.join(chrome_dir, "chrome.exe")
     if os.path.exists(chrome_exe):
         return chrome_exe
+
+    # 2. 扫描系统常见Chrome安装路径
+    sys_paths = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+    ]
+    for p in sys_paths:
+        if os.path.exists(p):
+            return p  # 显式返回路径，不用binary_location
 
     # 3. 自动下载便携版
     write_log("首次使用需下载运行环境（约 180MB，仅此一次，请耐心等待）...", "info")
@@ -1155,8 +1148,7 @@ def init_chrome(debug_mode):
             raise Exception("Chromedriver 未找到，请检查网络连接")
 
     options = webdriver.ChromeOptions()
-    if chrome_binary:
-        options.binary_location = chrome_binary
+    options.binary_location = chrome_binary  # 始终指定路径，不依赖系统默认
     if not debug_mode:
         options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
