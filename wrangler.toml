@@ -1,0 +1,7 @@
+name = "vt-proxy"
+main = "worker.js"
+compatibility_date = "2026-05-20"
+
+kv_namespaces = [
+  { binding = "VTMAX_CREDITS", id = "3a5511955fe14571b97aa38bbb59bb30" }
+]

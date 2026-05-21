@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QLabel, QLineEdit, QPlainTextEdit, QComboBox,
     QCheckBox, QPushButton, QProgressBar, QFileDialog, QMenu,
-    QMessageBox, QDialog, QFrame, QSizePolicy,
+    QMessageBox, QDialog, QFrame, QSizePolicy, QListWidget,
 )
 from PySide6.QtCore import Qt, Signal, QThread, QTimer, QMimeData
 from PySide6.QtGui import QFont, QIcon
@@ -396,6 +396,191 @@ class ActivationDialog(QDialog):
 
 
 # ====================== 主窗口 ======================
+class AiBgReplaceWorker(QThread):
+    progress = Signal(int, int)
+    finished = Signal(int, int)
+    status = Signal(str)
+    error = Signal(str)
+
+    def __init__(self, paths, hwid, out_dir):
+        super().__init__()
+        self.paths = paths
+        self.hwid = hwid
+        self.out_dir = out_dir
+
+    def run(self):
+        import requests
+        ok = 0
+        total = len(self.paths)
+        for i, p in enumerate(self.paths):
+            self.status.emit(f"处理中 ({i+1}/{total})...")
+            try:
+                with open(p, "rb") as f:
+                    files = {"image": (os.path.basename(p), f, "image/jpeg")}
+                    data = {"hwid": self.hwid}
+                    r = requests.post(
+                        "https://vt-proxy.vtmax.workers.dev/ai-bg-replace",
+                        files=files, data=data, timeout=180
+                    )
+                if r.status_code == 200 and len(r.content) > 1000:
+                    out_name = f"{os.path.splitext(os.path.basename(p))[0]}_ai.jpg"
+                    out_path = os.path.join(self.out_dir, out_name)
+                    with open(out_path, "wb") as fo:
+                        fo.write(r.content)
+                    ok += 1
+                elif r.status_code == 402:
+                    self.error.emit("AI 余额不足，请联系管理员充值")
+                    break
+                else:
+                    err = r.json().get("error", "未知错误") if r.headers.get("content-type","").startswith("application/json") else "服务异常"
+                    self.error.emit(f"处理失败: {err}")
+            except Exception as e:
+                self.error.emit(f"网络错误: {e}")
+            self.progress.emit(i + 1, total)
+        self.finished.emit(ok, total)
+
+
+class AiBgDialog(QDialog):
+    def __init__(self, parent, hwid):
+        super().__init__(parent)
+        self.hwid = hwid
+        self.paths = []
+        self.setWindowTitle("AI 背景替换")
+        self.setMinimumSize(520, 420)
+        self.resize(560, 460)
+        self._build()
+
+    def _build(self):
+        self.setStyleSheet("QDialog{background:#fff;} QLabel{color:#374151;background:transparent;} QListWidget{background:#fff;border:1px solid #e5e7eb;border-radius:6px;font-size:12px;color:#111;}")
+        lo = QVBoxLayout(self)
+        lo.setContentsMargins(24, 20, 24, 20)
+        lo.setSpacing(10)
+
+        # 标题
+        title = QLabel("AI 真实场景替换")
+        title.setStyleSheet("font-size:16px; font-weight:700; color:#111; background:transparent;")
+        lo.addWidget(title)
+
+        # 副标题
+        sub = QLabel("借助AI大模型，为商品图片替换真实感背景")
+        sub.setStyleSheet("font-size:12px; color:#999; background:transparent;")
+        lo.addWidget(sub)
+
+        # 余额
+        self.credits_label = QLabel("查询余额中...")
+        self.credits_label.setStyleSheet("font-size:12px; color:#10b981; background:transparent;")
+        lo.addWidget(self.credits_label)
+        self._refresh_credits()
+
+        lo.addSpacing(4)
+
+        # 文件选择
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(6)
+        btn_add = QPushButton("添加图片")
+        btn_add.setObjectName("btnSecondary")
+        btn_add.setCursor(Qt.PointingHandCursor)
+        btn_add.clicked.connect(self._add_files)
+        btn_row.addWidget(btn_add)
+        btn_clear = QPushButton("清空列表")
+        btn_clear.setObjectName("btnSecondary")
+        btn_clear.setCursor(Qt.PointingHandCursor)
+        btn_clear.clicked.connect(self._clear_list)
+        btn_row.addWidget(btn_clear)
+        btn_row.addStretch()
+        self.count_label = QLabel("已选：0 张")
+        self.count_label.setStyleSheet("font-size:12px; color:#888; background:transparent;")
+        btn_row.addWidget(self.count_label)
+        lo.addLayout(btn_row)
+
+        # 文件列表
+        self.list_widget = QListWidget()
+        self.list_widget.setMinimumHeight(120)
+        lo.addWidget(self.list_widget, 1)
+
+        # 进度
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setFixedHeight(5)
+        lo.addWidget(self.progress_bar)
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet("font-size:11px; color:#888; background:transparent;")
+        lo.addWidget(self.status_label)
+
+        # 按钮
+        btn_bot = QHBoxLayout()
+        btn_bot.setSpacing(8)
+        self.btn_process = QPushButton("开始处理")
+        self.btn_process.setObjectName("btnStart")
+        self.btn_process.setCursor(Qt.PointingHandCursor)
+        self.btn_process.clicked.connect(self._start_process)
+        self.btn_process.setEnabled(False)
+        btn_bot.addWidget(self.btn_process)
+        btn_bot.addStretch()
+        self.btn_open = QPushButton("打开输出目录")
+        self.btn_open.setObjectName("btnSecondary")
+        self.btn_open.setCursor(Qt.PointingHandCursor)
+        self.btn_open.clicked.connect(self._open_out)
+        btn_bot.addWidget(self.btn_open)
+        lo.addLayout(btn_bot)
+
+    def _refresh_credits(self):
+        try:
+            import requests
+            r = requests.get(f"https://vt-proxy.vtmax.workers.dev/ai-credits?hwid={self.hwid}", timeout=10)
+            if r.status_code == 200:
+                c = r.json().get("credits", 0)
+                self.credits_label.setText(f"剩余次数：{c} 次")
+        except:
+            self.credits_label.setText("剩余次数：—")
+
+    def _add_files(self):
+        files, _ = QFileDialog.getOpenFileNames(self, "选择图片", "",
+            "图片文件 (*.jpg *.jpeg *.png *.webp *.bmp)")
+        for f in files:
+            if f not in self.paths:
+                self.paths.append(f)
+                self.list_widget.addItem(os.path.basename(f))
+        self._update_count()
+
+    def _clear_list(self):
+        self.paths.clear()
+        self.list_widget.clear()
+        self._update_count()
+
+    def _update_count(self):
+        self.count_label.setText(f"已选：{len(self.paths)} 张")
+        self.btn_process.setEnabled(len(self.paths) > 0)
+
+    def _start_process(self):
+        if not self.paths:
+            return
+        self.btn_process.setEnabled(False)
+        self._refresh_credits()
+        out_dir = QFileDialog.getExistingDirectory(self, "选择输出目录")
+        if not out_dir:
+            self.btn_process.setEnabled(True)
+            return
+
+        self.worker = AiBgReplaceWorker(self.paths, self.hwid, out_dir)
+        self.worker.progress.connect(lambda c,t: self.progress_bar.setValue(int(c/t*100)))
+        self.worker.status.connect(lambda s: self.status_label.setText(s))
+        self.worker.error.connect(lambda e: QMessageBox.warning(self, "错误", e))
+        self.worker.finished.connect(self._on_finished)
+        self.worker.start()
+
+    def _on_finished(self, ok, total):
+        self.progress_bar.setValue(100)
+        self.status_label.setText(f"完成：{ok}/{total} 张处理成功")
+        self._refresh_credits()
+        self.btn_process.setEnabled(True)
+
+    def _open_out(self):
+        import subprocess
+        subprocess.Popen(["explorer", os.path.abspath(".")])
+
+
 class VintedScraperGUI(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -1098,6 +1283,13 @@ class VintedScraperGUI(QMainWindow):
             "模拟个人卖家的真实拍摄场景，效果以假乱真。\n\n"
             "敬请期待！")
 
+    def _get_hwid(self):
+        try:
+            import license_system
+            return license_system.get_hwid()
+        except:
+            return "UNKNOWN"
+
     def _set_ui_running(self, running):
         self.btn_start.setEnabled(not running)
         self.btn_stop.setEnabled(running)
@@ -1188,20 +1380,28 @@ class VintedScraperGUI(QMainWindow):
     def _run_local_worker(self, paths):
         import shutil as _shutil
         variants = backend.DEEP_MODE_VARIANTS if backend.DEEP_ANTI_DUPLICATE_ENABLED else 1
+        # 输出到保存路径，不存在则用第一张图目录兜底
+        base_dir = self._save_path if self._save_path and os.path.isdir(self._save_path) else (os.path.dirname(paths[0]) if paths else ".")
+        out_dir = os.path.join(base_dir, "Processed")
+        os.makedirs(out_dir, exist_ok=True)
+
         expanded = []
         self._deep_copies = []
         for p in paths:
-            expanded.append(p)
+            base, ext = os.path.splitext(os.path.basename(p))
+            cp = os.path.join(out_dir, f"{base}{ext}")
+            _shutil.copy2(p, cp)
+            expanded.append(cp)
+            self._deep_copies.append(cp)
             for v in range(2, variants + 1):
-                base, ext = os.path.splitext(p)
-                cp = f"{base}_v{v}{ext}"
-                _shutil.copy2(p, cp)
-                expanded.append(cp)
-                self._deep_copies.append(cp)
+                cp_v = os.path.join(out_dir, f"{base}_v{v}{ext}")
+                _shutil.copy2(p, cp_v)
+                expanded.append(cp_v)
+                self._deep_copies.append(cp_v)
         if variants > 1:
-            self._add_log(f"🖼 开始本地处理，{len(paths)} 张图片 → 深度模式各输出 {variants} 个版本，共 {len(expanded)} 次", "info")
+            self._add_log(f"🖼 开始本地处理，{len(paths)} 张图片 → 深度模式各输出 {variants} 个版本，共 {len(expanded)} 次 → {out_dir}", "info")
         else:
-            self._add_log(f"🖼 开始本地防重处理，共 {len(paths)} 张图片", "info")
+            self._add_log(f"🖼 开始本地防重处理，共 {len(paths)} 张图片 → {out_dir}", "info")
         self._local_worker = LocalProcessWorker(expanded)
         self._local_worker.log_signal.connect(self._add_log)
         self._local_worker.progress_signal.connect(
@@ -1212,13 +1412,6 @@ class VintedScraperGUI(QMainWindow):
         self._local_worker.start()
 
     def _on_local_finished(self, ok):
-        # 清理深度模式遗留的 _v2/_v3 副本
-        for p in getattr(self, '_deep_copies', []):
-            try:
-                if os.path.exists(p):
-                    os.remove(p)
-            except:
-                pass
         self._deep_copies = []
         self._local_worker = None
         self.btn_local.setEnabled(True)
