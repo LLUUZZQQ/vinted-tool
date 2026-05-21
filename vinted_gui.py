@@ -1405,10 +1405,12 @@ class VintedScraperGUI(QMainWindow):
         self._local_worker = LocalProcessWorker(expanded)
         self._local_worker.log_signal.connect(self._add_log)
         self._local_worker.progress_signal.connect(
-            lambda c, t: (self.progress_bar.setMaximum(t), self.progress_bar.setValue(c))
+            lambda c, t: (self.progress_bar.setMaximum(t), self.progress_bar.setValue(c),
+                          self.status_label.setText(f"本地处理中... {c}/{t}"))
         )
         self._local_worker.finished_signal.connect(self._on_local_finished)
         self.btn_local.setEnabled(False)
+        self.status_label.setText("本地处理中...")
         self._local_worker.start()
 
     def _on_local_finished(self, ok):
@@ -1417,6 +1419,7 @@ class VintedScraperGUI(QMainWindow):
         self.btn_local.setEnabled(True)
         self.progress_bar.setMaximum(100)
         self.progress_bar.setValue(0)
+        self.status_label.setText(f"本地处理完成，成功 {ok} 张")
         self._add_log(f"✅ 本地防重完成，成功 {ok} 张", "success")
 
     def _show_help(self):
