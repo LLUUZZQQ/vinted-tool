@@ -722,7 +722,7 @@ class VintedScraperGUI(QMainWindow):
 
         # 按钮
         btn = QHBoxLayout()
-        btn.setSpacing(8)
+        btn.setSpacing(5)
         self.btn_start = QPushButton(_tr("开始抓取"))
         self.btn_start.setObjectName("btnStart")
         btn.addWidget(self.btn_start)

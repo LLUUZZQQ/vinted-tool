@@ -138,7 +138,7 @@ QPushButton#btnStop:disabled { background-color: #f8f9fa; color: #d1d5db; border
 QPushButton#btnSecondary {
     background-color: #ffffff; color: #111111;
     border: 1px solid #e5e7eb; border-radius: 6px;
-    padding: 5px 12px; font-weight: 500; font-size: 12px;
+    padding: 5px 8px; font-weight: 500; font-size: 12px;
     min-height: 26px;
 }
 QPushButton#btnSecondary:hover { background-color: #f8f9fa; border-color: #d1d5db; }
