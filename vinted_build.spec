@@ -4,7 +4,10 @@ block_cipher = None
 a = Analysis(
     ['vinted_gui.py'],
     pathex=[],
-    binaries=[],
+    binaries=[
+        ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/vcruntime140.dll', '.'),
+        ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/vcruntime140_1.dll', '.'),
+    ],
     datas=[
         ('vinted_style.qss', '.'),
         ('chromedriver.exe', '.'),
