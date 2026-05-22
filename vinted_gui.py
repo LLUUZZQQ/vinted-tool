@@ -1479,17 +1479,43 @@ class VintedScraperGUI(QMainWindow):
         )
         if reply != QMessageBox.Yes:
             return
-        self._add_log(f"正在下载 v{version}...", "info")
-        self.status_label.setText("状态：正在下载更新...")
-        QApplication.processEvents()
-        new_exe = update_checker.download_update(url,
-            lambda d, t: self.status_label.setText(f"状态：正在下载更新 {d//1024//1024}/{t//1024//1024}MB"))
-        if not new_exe:
-            self._add_log("更新下载失败", "error")
-            QMessageBox.critical(self, "更新失败", "下载失败，请稍后重试。")
-            return
-        self._add_log("正在应用更新...", "info")
-        update_checker.apply_update(new_exe)
+
+        # 进度弹窗
+        progress = QProgressDialog("正在下载更新...", "取消", 0, 100, self)
+        progress.setWindowTitle("版本更新")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setValue(0)
+        progress.canceled.connect(lambda: None)  # 不允许取消
+
+        class DownloadThread(QThread):
+            result = Signal(object)
+            def __init__(self, url):
+                super().__init__()
+                self.url = url
+            def run(self):
+                def cb(d, t):
+                    if t > 0:
+                        self.result.emit(("progress", d * 100 // t))
+                r = update_checker.download_update(self.url, cb)
+                self.result.emit(("done", r))
+
+        self._dl_thread = DownloadThread(url)
+        def on_result(data):
+            kind, val = data
+            if kind == "progress":
+                progress.setValue(val)
+            elif kind == "done":
+                progress.close()
+                if val:
+                    self._add_log("正在应用更新...", "info")
+                    update_checker.apply_update(val)
+                else:
+                    self._add_log("更新下载失败", "error")
+                    QMessageBox.critical(self, "更新失败", "下载失败，请稍后重试。")
+        self._dl_thread.result.connect(on_result)
+        self._dl_thread.start()
+        progress.exec()
 
     # ---- 窗口级拖拽（图片文件/文件夹） ----
     def dragEnterEvent(self, event):
