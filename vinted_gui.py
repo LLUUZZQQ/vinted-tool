@@ -11,16 +11,16 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QLabel, QLineEdit, QPlainTextEdit, QComboBox,
     QCheckBox, QPushButton, QProgressBar, QFileDialog, QMenu,
-    QMessageBox, QDialog, QFrame, QSizePolicy, QListWidget,
+    QMessageBox, QDialog, QFrame, QSizePolicy, QListWidget, QScrollArea,
 )
 from PySide6.QtCore import Qt, Signal, QThread, QTimer, QMimeData
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtGui import QFont, QIcon, QPixmap, QPainter
 import Vinted_抓图 as backend
 import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1236,6 +1236,7 @@ class VintedScraperGUI(QMainWindow):
     def _on_task_finished(self, stopped):
         self._set_ui_running(False)
         self._worker = None
+        self._last_output_dir = backend.CUSTOM_SAVE_ROOT if backend.CUSTOM_SAVE_ROOT and os.path.isdir(backend.CUSTOM_SAVE_ROOT) else None
         self.status_label.setText(_tr("状态：已停止") if stopped else "处理完成")
         _session_images = backend.TOTAL_IMAGES
         if not stopped:
@@ -1279,6 +1280,7 @@ class VintedScraperGUI(QMainWindow):
         msg.setInformativeText(info)
         msg.setStyleSheet("QMessageBox QLabel#qt_msgbox_informativelabel { font-size: 13px; }")
         btn_open = msg.addButton("浏览文件", QMessageBox.ActionRole)
+        btn_preview = msg.addButton("预览对比", QMessageBox.ActionRole)
         btn_clear = msg.addButton("清空队列", QMessageBox.ActionRole)
         btn_export = None
         if backend.FAILED_URLS:
@@ -1287,6 +1289,8 @@ class VintedScraperGUI(QMainWindow):
         clicked = msg.clickedButton()
         if clicked == btn_open:
             self._open_save_dir()
+        elif clicked == btn_preview:
+            self._show_preview()
         elif clicked == btn_clear:
             self._clear_urls()
         elif btn_export and clicked == btn_export:
@@ -1405,6 +1409,8 @@ class VintedScraperGUI(QMainWindow):
         ts = datetime.now().strftime("%Y%m%d_%H%M")
         out_dir = os.path.join(base_dir, f"Processed_{ts}")
         os.makedirs(out_dir, exist_ok=True)
+        self._last_output_dir = out_dir
+        self._last_source_paths = list(paths)
 
         expanded = []
         self._deep_copies = []
@@ -1526,6 +1532,476 @@ li { margin:2px 0; list-style:none; }
         has_update, version, changelog, url = update_checker.check_for_update()
         if has_update:
             self._add_log(f"发现新版本 v{version}，点击「检查更新」升级", "warning")
+
+    def _show_preview(self):
+        # 优先显示最近一次处理的输出目录
+        recent_dir = getattr(self, '_last_output_dir', None)
+        if recent_dir and os.path.isdir(recent_dir):
+            search_dir = recent_dir
+            jpgs = sorted(glob.glob(os.path.join(search_dir, "*.jpg")))
+        else:
+            search_dir = self._save_path if self._save_path and os.path.isdir(self._save_path) else "."
+            jpgs = sorted(glob.glob(os.path.join(search_dir, "*.jpg")) + glob.glob(os.path.join(search_dir, "Processed_*", "*.jpg")))
+        save_dir = search_dir
+        if not jpgs:
+            QMessageBox.information(self, "预览", "暂无可预览的图片")
+            return
+        # 匹配原图：文件名去掉随机后缀
+        import re
+        pairs = []
+        for p in jpgs:
+            base = os.path.basename(p)
+            # 匹配 {name}_d{score}_{rand6}.jpg 或 {name}_{rand6}.jpg
+            m = re.match(r'(.+?)(?:_d\d+)?_[A-Za-z0-9]{6}\.jpg$', base)
+            if m:
+                orig_name = m.group(1) + '.jpg'
+                # 变体文件去掉 _v2/_v3 后缀，匹配回原始文件名
+                orig_name = re.sub(r'_v\d+(?=\.jpg$)', '', orig_name)
+                # 在同目录、上级目录、保存目录、原始来源目录找原图
+                search_dirs = [os.path.dirname(p), os.path.dirname(os.path.dirname(p)), save_dir]
+                for sp in getattr(self, '_last_source_paths', []) or []:
+                    sd = os.path.dirname(sp)
+                    if sd not in search_dirs:
+                        search_dirs.append(sd)
+                for d in search_dirs:
+                    orig_path = os.path.join(d, orig_name)
+                    if os.path.exists(orig_path) and orig_path != p:
+                        pairs.append((orig_path, p))
+                        break
+                else:
+                    pairs.append((None, p))
+            else:
+                pairs.append((None, p))
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("预览对比")
+        dlg.setMinimumSize(1060, 640)
+        dlg.resize(1120, 700)
+        dlg.setStyleSheet("QDialog { background: #1a1a1a; }")
+
+        main_lo = QVBoxLayout(dlg)
+        main_lo.setContentsMargins(16, 12, 16, 12)
+        main_lo.setSpacing(10)
+
+        # ---- 标题 ----
+        title = QLabel(f"处理结果 · 共 {len(pairs)} 张")
+        title.setStyleSheet("font-size: 15px; font-weight: 600; color: #e0e0e0;")
+        main_lo.addWidget(title)
+
+        # ---- 主体：左侧缩略图卡片 + 右侧对比 ----
+        body = QHBoxLayout()
+        body.setSpacing(14)
+
+        # 左侧缩略图卡片列表
+        left_panel = QVBoxLayout()
+        left_panel.setSpacing(0)
+        left_label = QLabel("缩略图")
+        left_label.setStyleSheet("font-size: 11px; color: #777; padding: 0 0 4px 4px;")
+        left_panel.addWidget(left_label)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFixedWidth(150)
+        scroll.setStyleSheet("QScrollArea { background: #1a1a1a; border: none; } QScrollBar:vertical { background: #1a1a1a; width: 5px; } QScrollBar::handle:vertical { background: #444; border-radius: 2px; min-height: 20px; } QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }")
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        thumb_container = QWidget()
+        thumb_container.setStyleSheet("background: #1a1a1a;")
+        thumb_lo = QVBoxLayout(thumb_container)
+        thumb_lo.setContentsMargins(0, 0, 4, 0)
+        thumb_lo.setSpacing(6)
+
+        # 提取差异度
+        def _extract_score(path):
+            m = re.search(r'_d(\d+)_', os.path.basename(path))
+            return int(m.group(1)) if m else None
+
+        card_widgets = []
+        for i, (o, p) in enumerate(pairs):
+            card = QFrame()
+            card.setFixedSize(130, 106)
+            card.setCursor(Qt.PointingHandCursor)
+            card.setStyleSheet("QFrame { background: #222; border: 2px solid #2a2a2a; border-radius: 8px; } QFrame:hover { background: #2a2a2a; }")
+            card_lo = QVBoxLayout(card)
+            card_lo.setContentsMargins(4, 4, 4, 4)
+            card_lo.setSpacing(2)
+            # 缩略图
+            thumb_lbl = QLabel()
+            thumb_lbl.setFixedSize(118, 72)
+            thumb_lbl.setAlignment(Qt.AlignCenter)
+            thumb_lbl.setStyleSheet("background: #1a1a1a; border-radius: 4px; border: none;")
+            pix_path = p if os.path.exists(p) else (o if o and os.path.exists(o) else None)
+            if pix_path:
+                pix = QPixmap(pix_path).scaled(118, 72, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                thumb_lbl.setPixmap(pix)
+            else:
+                thumb_lbl.setText("—")
+                thumb_lbl.setStyleSheet("background: #1a1a1a; border-radius: 4px; border: none; color: #555; font-size: 11px;")
+            card_lo.addWidget(thumb_lbl)
+            # 差异度 + 文件名
+            score = _extract_score(p) if p else None
+            info_lbl = QLabel()
+            if score is not None:
+                info_text = f"<span style='color:#10b981;font-weight:600;'>差异 {score}</span>"
+            else:
+                info_text = f"<span style='color:#555;'>无分值</span>"
+            name = os.path.basename(p)[:20] if p else "—"
+            info_text += f"<br><span style='color:#888;font-size:9px;'>{name}</span>"
+            info_lbl.setText(info_text)
+            info_lbl.setStyleSheet("font-size: 10px; color: #aaa; padding: 0 2px; border: none;")
+            card_lo.addWidget(info_lbl)
+            thumb_lo.addWidget(card)
+            card_widgets.append(card)
+
+        thumb_lo.addStretch()
+        scroll.setWidget(thumb_container)
+        left_panel.addWidget(scroll)
+        body.addLayout(left_panel)
+
+        # 右侧对比区域
+        right_panel = QVBoxLayout()
+        right_panel.setSpacing(8)
+
+        # 对比图区 — QLabel 直接嵌入，缩放时只渲染可见区域
+        cmp = QHBoxLayout()
+        cmp.setSpacing(0)
+
+        BASE_SIZE = 360
+        zoom_level = [1.0]
+        ZOOM_MIN, ZOOM_MAX, ZOOM_STEP = 1.0, 8.0, 0.25
+        pan_x = [0]   # 共享平移偏移（放大后在完整图片坐标系中）
+        pan_y = [0]
+
+        def _make_image_label():
+            lbl = QLabel()
+            lbl.setMinimumSize(300, 300)
+            lbl.setAlignment(Qt.AlignCenter)
+            lbl.setStyleSheet("background: #111; border-radius: 10px; border: 1px solid #2a2a2a;")
+            return lbl
+
+        orig_label = _make_image_label()
+        cmp.addWidget(orig_label, 1)
+
+        # 中间箭头 + 缩放指示
+        mid_col = QVBoxLayout()
+        mid_col.addStretch()
+        arrow = QLabel("→")
+        arrow.setStyleSheet("font-size: 22px; color: #10b981; font-weight: 700;")
+        arrow.setAlignment(Qt.AlignCenter)
+        arrow.setFixedWidth(40)
+        mid_col.addWidget(arrow)
+        zoom_label = QLabel("1.0×")
+        zoom_label.setAlignment(Qt.AlignCenter)
+        zoom_label.setStyleSheet("font-size: 11px; color: #10b981; font-weight: 600; padding: 2px 0;")
+        mid_col.addWidget(zoom_label)
+        mid_col.addStretch()
+        cmp.addLayout(mid_col)
+
+        proc_label = _make_image_label()
+        cmp.addWidget(proc_label, 1)
+
+        right_panel.addLayout(cmp)
+
+        # 差异度徽章
+        diff_badge = QLabel("")
+        diff_badge.setAlignment(Qt.AlignCenter)
+        diff_badge.setStyleSheet("font-size: 20px; font-weight: 700; color: #10b981; padding: 2px 0;")
+        diff_badge.hide()
+        right_panel.addWidget(diff_badge)
+        # 隐藏的占位
+        diff_spacer = QLabel("")
+        diff_spacer.setFixedHeight(28)
+        right_panel.addWidget(diff_spacer)
+
+        # 文件信息栏
+        info_bar = QHBoxLayout()
+        orig_info = QLabel("")
+        orig_info.setStyleSheet("font-size: 10px; color: #777;")
+        info_bar.addWidget(orig_info)
+        info_bar.addStretch()
+        proc_info = QLabel("")
+        proc_info.setStyleSheet("font-size: 10px; color: #777;")
+        info_bar.addWidget(proc_info)
+        right_panel.addLayout(info_bar)
+
+        body.addLayout(right_panel, 1)
+        main_lo.addLayout(body)
+
+        # ---- 导航栏 ----
+        nav = QHBoxLayout()
+        nav.addStretch()
+        btn_prev = QPushButton("◀")
+        btn_prev.setFixedSize(36, 30)
+        page_label = QLabel("0 / 0")
+        page_label.setStyleSheet("font-size: 12px; color: #aaa;")
+        page_label.setAlignment(Qt.AlignCenter)
+        page_label.setFixedWidth(60)
+        btn_next = QPushButton("▶")
+        btn_next.setFixedSize(36, 30)
+        for b in [btn_prev, btn_next]:
+            b.setStyleSheet("QPushButton { background: #2a2a2a; color: #aaa; border: 1px solid #333; border-radius: 4px; font-size: 12px; } QPushButton:hover { background: #3a3a3a; color: #fff; border-color: #555; }")
+        nav.addWidget(btn_prev)
+        nav.addWidget(page_label)
+        nav.addWidget(btn_next)
+        nav.addStretch()
+        main_lo.addLayout(nav)
+
+        # ---- 底部按钮 ----
+        bottom = QHBoxLayout()
+        btn_browse = QPushButton("浏览文件夹")
+        btn_browse.setStyleSheet("QPushButton { background: #2a2a2a; color: #ccc; border: 1px solid #333; border-radius: 5px; padding: 6px 14px; font-size: 12px; } QPushButton:hover { background: #3a3a3a; color: #fff; }")
+        btn_browse.clicked.connect(lambda: (dlg.accept(), self._open_save_dir()))
+        bottom.addWidget(btn_browse)
+        bottom.addStretch()
+        btn_close = QPushButton("关闭")
+        btn_close.setStyleSheet("QPushButton { background: #2a2a2a; color: #ccc; border: 1px solid #333; border-radius: 5px; padding: 6px 16px; font-size: 12px; } QPushButton:hover { background: #3a3a3a; color: #fff; }")
+        btn_close.clicked.connect(dlg.close)
+        bottom.addWidget(btn_close)
+        main_lo.addLayout(bottom)
+
+        # ---- 逻辑函数 ----
+        def _show_full(path):
+            if not path or not os.path.exists(path):
+                return
+            pix = QPixmap(path)
+            if pix.isNull():
+                return
+            fd = QDialog(dlg)
+            fd.setWindowTitle(os.path.basename(path))
+            fd.setStyleSheet("background: #0d0d0d;")
+            fl = QVBoxLayout(fd)
+            fl.setContentsMargins(0, 0, 0, 0)
+            screen = QApplication.primaryScreen().availableGeometry()
+            max_w = int(screen.width() * 0.85)
+            max_h = int(screen.height() * 0.85)
+            fl2 = QLabel()
+            fl2.setPixmap(pix.scaled(max_w, max_h, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            fl2.setAlignment(Qt.AlignCenter)
+            fl.addWidget(fl2)
+            fd.exec()
+
+        current_idx = [0]
+        _orig_pixmap = [None]
+        _proc_pixmap = [None]
+
+        def _render_visible(label, full_pm):
+            """取 full_pm 中当前 pan+zoom 对应的可见区域渲染到 label"""
+            if not full_pm or full_pm.isNull():
+                return
+            lw, lh = label.width(), label.height()
+            if lw <= 0 or lh <= 0:
+                lw, lh = BASE_SIZE, BASE_SIZE
+            z = zoom_level[0]
+            # 完整缩放后的图
+            pw = max(1, int(lw * z))
+            ph = max(1, int(lh * z))
+            full = full_pm.scaled(pw, ph, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            # 计算可见区域
+            ox = pan_x[0]
+            oy = pan_y[0]
+            # clamp offset
+            ox = max(0, min(ox, max(0, full.width() - lw)))
+            oy = max(0, min(oy, max(0, full.height() - lh)))
+            pan_x[0], pan_y[0] = ox, oy
+            # 如果缩放图小于视口，居中
+            if full.width() <= lw:
+                ox = 0
+            if full.height() <= lh:
+                oy = 0
+            copy_w = min(lw, full.width() - ox)
+            copy_h = min(lh, full.height() - oy)
+            if copy_w > 0 and copy_h > 0:
+                visible = full.copy(ox, oy, copy_w, copy_h)
+                # 画到纯黑底上以处理不满视口的情况
+                canvas = QPixmap(lw, lh)
+                canvas.fill(Qt.black)
+                painter = QPainter(canvas)
+                painter.drawPixmap((lw - copy_w) // 2, (lh - copy_h) // 2, visible)
+                painter.end()
+                label.setPixmap(canvas)
+            else:
+                label.clear()
+
+        def _apply_zoom():
+            _render_visible(orig_label, _orig_pixmap[0])
+            _render_visible(proc_label, _proc_pixmap[0])
+            z = zoom_level[0]
+            zoom_label.setText(f"{z:.1f}×")
+            if z > 2.0:
+                zoom_label.setStyleSheet("font-size: 11px; color: #f59e0b; font-weight: 600; padding: 2px 0;")
+            else:
+                zoom_label.setStyleSheet("font-size: 11px; color: #10b981; font-weight: 600; padding: 2px 0;")
+
+        def _pan_both(dx, dy):
+            z = zoom_level[0]
+            if z <= 1.0:
+                return
+            # 拖拽方向：鼠标下移 → 图片下移（看到上方内容）
+            pan_x[0] -= int(dx * z)
+            pan_y[0] -= int(dy * z)
+            _apply_zoom()
+
+        def _zoom_wheel(event):
+            delta = event.angleDelta().y()
+            if delta > 0:
+                zoom_level[0] = min(ZOOM_MAX, zoom_level[0] + ZOOM_STEP)
+            elif delta < 0:
+                zoom_level[0] = max(ZOOM_MIN, zoom_level[0] - ZOOM_STEP)
+            _apply_zoom()
+
+        def _zoom_reset():
+            zoom_level[0] = 1.0
+            pan_x[0] = pan_y[0] = 0
+            _apply_zoom()
+
+        def _install_interaction(label, side):
+            drag_start = [None]
+            drag_triggered = [False]
+
+            def press(event):
+                if event.button() == Qt.LeftButton:
+                    drag_start[0] = event.globalPos()
+                    drag_triggered[0] = False
+                elif event.button() == Qt.RightButton:
+                    _zoom_reset()
+
+            def move_handler(event):
+                if drag_start[0] is not None:
+                    delta = event.globalPos() - drag_start[0]
+                    if abs(delta.x()) > 4 or abs(delta.y()) > 4:
+                        drag_triggered[0] = True
+                        _pan_both(delta.x(), delta.y())
+                        drag_start[0] = event.globalPos()
+
+            def release(event):
+                if event.button() == Qt.LeftButton:
+                    if not drag_triggered[0] and drag_start[0] is not None:
+                        path = (_orig_paths[current_idx[0]] if side == 0
+                                else _proc_paths[current_idx[0]])
+                        if path:
+                            _show_full(path)
+                    drag_start[0] = None
+                    drag_triggered[0] = False
+
+            label.mousePressEvent = press
+            label.mouseMoveEvent = move_handler
+            label.mouseReleaseEvent = release
+            label.wheelEvent = _zoom_wheel
+
+        _orig_paths = [None] * len(pairs)
+        _proc_paths = [None] * len(pairs)
+
+        _install_interaction(orig_label, 0)
+        _install_interaction(proc_label, 1)
+
+        def show_pair(idx):
+            if idx < 0 or idx >= len(pairs):
+                return
+            current_idx[0] = idx
+            o, p = pairs[idx]
+
+            # 切换图片时重置缩放和平移
+            zoom_level[0] = 1.0
+            pan_x[0] = pan_y[0] = 0
+
+            # 差异度徽章
+            score = _extract_score(p) if p else None
+            if score is not None:
+                diff_badge.setText(f"差异度 {score}")
+                diff_badge.show()
+                diff_spacer.hide()
+            else:
+                diff_badge.hide()
+                diff_spacer.show()
+
+            # 处理图
+            _proc_pixmap[0] = QPixmap(p) if p and os.path.exists(p) else QPixmap()
+            _proc_paths[idx] = p if p and os.path.exists(p) else None
+            _default_style = "background: #111; border-radius: 10px; border: 1px solid #2a2a2a;"
+            if not _proc_pixmap[0].isNull():
+                proc_label.setText("")
+                proc_label.setStyleSheet(_default_style)
+                sz = os.path.getsize(p) / 1024
+                dims = f"{_proc_pixmap[0].width()}×{_proc_pixmap[0].height()}"
+                proc_info.setText(f"{os.path.basename(p)}  ·  {dims}  ·  {sz:.0f}KB")
+            else:
+                _proc_pixmap[0] = None
+                _proc_paths[idx] = None
+                proc_label.setText("加载失败")
+                proc_label.setStyleSheet("background: #111; border-radius: 10px; border: 1px solid #2a2a2a; color: #555; font-size: 16px;")
+                proc_info.setText("")
+
+            # 原图
+            if o and os.path.exists(o):
+                _orig_pixmap[0] = QPixmap(o)
+                _orig_paths[idx] = o
+                if not _orig_pixmap[0].isNull():
+                    orig_label.setText("")
+                    orig_label.setStyleSheet(_default_style)
+                    sz = os.path.getsize(o) / 1024
+                    dims = f"{_orig_pixmap[0].width()}×{_orig_pixmap[0].height()}"
+                    orig_info.setText(f"{os.path.basename(o)}  ·  {dims}  ·  {sz:.0f}KB")
+                else:
+                    _orig_pixmap[0] = None
+                    _orig_paths[idx] = None
+                    orig_label.setText("加载失败")
+                    orig_label.setStyleSheet("background: #111; border-radius: 10px; border: 1px solid #2a2a2a; color: #555; font-size: 16px;")
+                    orig_info.setText("")
+            else:
+                _orig_pixmap[0] = None
+                _orig_paths[idx] = None
+                orig_label.setText("原图无缓存")
+                orig_label.setStyleSheet("background: #111; border-radius: 10px; border: 1px solid #2a2a2a; color: #555; font-size: 16px;")
+                orig_info.setText("")
+
+            _apply_zoom()
+
+            page_label.setText(f"{idx + 1} / {len(pairs)}")
+
+            # 缩略图卡片高亮
+            for i, card in enumerate(card_widgets):
+                if i == idx:
+                    card.setStyleSheet("QFrame { background: #2a382a; border: 2px solid #10b981; border-radius: 8px; } QFrame:hover { background: #2d3f2d; }")
+                else:
+                    card.setStyleSheet("QFrame { background: #222; border: 2px solid #2a2a2a; border-radius: 8px; } QFrame:hover { background: #2a2a2a; }")
+
+        def navigate(delta):
+            new_idx = current_idx[0] + delta
+            if 0 <= new_idx < len(pairs):
+                show_pair(new_idx)
+
+        btn_prev.clicked.connect(lambda: navigate(-1))
+        btn_next.clicked.connect(lambda: navigate(1))
+
+        # 缩略图卡片点击事件
+        for i, card in enumerate(card_widgets):
+            card.mousePressEvent = (lambda e, idx=i: show_pair(idx))
+
+        # 键盘导航
+        def key_handler(event):
+            if event.key() == Qt.Key_Left:
+                navigate(-1)
+            elif event.key() == Qt.Key_Right:
+                navigate(1)
+            elif event.key() == Qt.Key_Escape:
+                dlg.close()
+            else:
+                QDialog.keyPressEvent(dlg, event)
+        dlg.keyPressEvent = key_handler
+
+        # 初始显示 — 延迟等布局完成再渲染
+        if pairs:
+            show_pair(0)
+            QTimer.singleShot(50, _apply_zoom)
+
+        # 窗口大小变化时重渲染
+        def _on_resize(event):
+            QDialog.resizeEvent(dlg, event)
+            if pairs:
+                QTimer.singleShot(0, _apply_zoom)
+        dlg.resizeEvent = _on_resize
+
+        dlg.exec()
 
     def _check_for_updates(self):
         self._add_log("正在检查更新...", "info")
