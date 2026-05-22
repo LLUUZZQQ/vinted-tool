@@ -991,7 +991,9 @@ def process_image(image_path, skip_gps=False):
             except:
                 pass
 
-        new_filename = (random_filename("") + f"_d{_score}.jpg") if _score is not None else random_filename(".jpg")
+        orig_base = os.path.splitext(os.path.basename(image_path))[0]
+        rand6 = ''.join(random.choices(string.ascii_letters + string.digits, k=6))
+        new_filename = f"{orig_base}_{rand6}_d{_score}.jpg" if _score is not None else f"{orig_base}_{rand6}.jpg"
         new_path = os.path.join(os.path.dirname(image_path), new_filename)
         os.replace(temp_path, new_path)
         os.remove(image_path)
