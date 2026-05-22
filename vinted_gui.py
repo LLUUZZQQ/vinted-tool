@@ -1482,13 +1482,13 @@ class VintedScraperGUI(QMainWindow):
         if reply != QMessageBox.Yes:
             return
 
-        # 进度弹窗
         progress = QProgressDialog("正在下载更新...", "", 0, 100, self)
         progress.setWindowTitle("版本更新")
         progress.setWindowModality(Qt.WindowModal)
         progress.setMinimumDuration(0)
         progress.setValue(0)
         progress.setCancelButton(None)
+        progress.show()
 
         class DownloadThread(QThread):
             progress_sig = Signal(int)
@@ -1503,23 +1503,20 @@ class VintedScraperGUI(QMainWindow):
                             self.progress_sig.emit(d * 100 // t)
                     r = update_checker.download_update(self.url, cb)
                     self.done_sig.emit(r or "")
-                except Exception:
+                except Exception as e:
                     self.done_sig.emit("")
 
-        def _on_download_done(r):
+        def _on_done(r):
             progress.close()
             if r:
-                self._add_log("正在应用更新...", "info")
                 update_checker.apply_update(r)
             else:
-                self._add_log("更新下载失败", "error")
-                QMessageBox.critical(self, "更新失败", "下载失败，请稍后重试。")
+                QMessageBox.critical(self, "更新失败", "下载失败，请检查网络后重试")
 
         self._dl_thread = DownloadThread(url)
         self._dl_thread.progress_sig.connect(lambda v: progress.setValue(v))
-        self._dl_thread.done_sig.connect(_on_download_done)
+        self._dl_thread.done_sig.connect(_on_done)
         self._dl_thread.start()
-        progress.exec()
 
     # ---- 窗口级拖拽（图片文件/文件夹） ----
     def dragEnterEvent(self, event):
