@@ -1382,9 +1382,7 @@ class VintedScraperGUI(QMainWindow):
         variants = backend.DEEP_MODE_VARIANTS if backend.DEEP_ANTI_DUPLICATE_ENABLED else 1
         # 输出到保存路径，不存在则用第一张图目录兜底
         base_dir = self._save_path if self._save_path and os.path.isdir(self._save_path) else (os.path.dirname(paths[0]) if paths else ".")
-        from datetime import datetime
-        ts = datetime.now().strftime("%Y%m%d_%H%M")
-        out_dir = os.path.join(base_dir, f"Processed_{ts}")
+        out_dir = os.path.join(base_dir, "Processed")
         os.makedirs(out_dir, exist_ok=True)
 
         expanded = []
@@ -1481,7 +1479,6 @@ class VintedScraperGUI(QMainWindow):
         )
         if reply != QMessageBox.Yes:
             return
-
         self._add_log(f"正在下载 v{version}...", "info")
         self.status_label.setText("状态：正在下载更新...")
         QApplication.processEvents()
