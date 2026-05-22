@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1448,6 +1448,18 @@ class VintedScraperGUI(QMainWindow):
         self.progress_bar.setValue(0)
         self.status_label.setText(f"本地处理完成，成功 {ok} 张")
         self._add_log(f"✅ 本地防重完成，成功 {ok} 张", "success")
+        if ok > 0:
+            msg = QMessageBox(self)
+            msg.setWindowTitle("处理完成")
+            msg.setText(f"本地处理完成，成功 {ok} 张")
+            msg.setStandardButtons(QMessageBox.Ok)
+            btn_open = msg.addButton("浏览文件", QMessageBox.ActionRole)
+            btn_preview = msg.addButton("预览对比", QMessageBox.ActionRole)
+            msg.exec()
+            if msg.clickedButton() == btn_open:
+                self._open_save_dir()
+            elif msg.clickedButton() == btn_preview:
+                self._show_preview()
 
     def _show_help(self):
         dlg = QDialog(self)
