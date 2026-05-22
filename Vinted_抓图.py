@@ -693,7 +693,7 @@ def process_image(image_path, skip_gps=False):
         # ---- 弹性局部扭曲：粗网格位移破坏 CNN 空间结构指纹 ----
         if DEEP_ANTI_DUPLICATE_ENABLED:
             img_array = np.array(img)
-            img_array = _apply_elastic_distortion(img_array, grid_size=8, max_disp=2.0)
+            img_array = _apply_elastic_distortion(img_array, grid_size=4, max_disp=1.0)
             img = Image.fromarray(img_array)
 
         # 局部液化已移除：均值偏移大、产生色阶断层
@@ -797,7 +797,7 @@ def process_image(image_path, skip_gps=False):
         # ---- 中频纹理叠加：频率感知+梯度自适应，对抗 CNN 特征匹配 ----
         if DEEP_ANTI_DUPLICATE_ENABLED:
             img_array = np.array(img)
-            opacity = random.uniform(0.003, 0.006)
+            opacity = random.uniform(0.001, 0.003)
             img_array = _apply_texture_overlay(img_array, opacity)
             img = Image.fromarray(img_array)
 
