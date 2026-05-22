@@ -895,8 +895,9 @@ class VintedScraperGUI(QMainWindow):
         self.stats_label.setStyleSheet("font-size: 11px; color: #999; background: transparent;")
         bar.addWidget(self.stats_label)
         bar.addSpacing(12)
-        self.stat_label = QLabel(_tr("成功：0 | 失败：0"))
+        self.stat_label = QLabel(_tr('<span style="color:#10b981;">成功：0</span> | <span style="color:#ef4444;">失败：0</span>'))
         self.stat_label.setObjectName("statLabel")
+        self.stat_label.setTextFormat(Qt.RichText)
         bar.addWidget(self.stat_label)
         lo.addLayout(bar)
 
@@ -1230,7 +1231,7 @@ class VintedScraperGUI(QMainWindow):
         if total > 0:
             self.progress_bar.setMaximum(total)
             self.progress_bar.setValue(current)
-        self.stat_label.setText(_tr(f"成功：{success} | 失败：{fail}"))
+        self.stat_label.setText(f'<span style="color:#10b981;">成功：{success}</span> | <span style="color:#ef4444;">失败：{fail}</span>')
 
     def _on_task_finished(self, stopped):
         self._set_ui_running(False)
