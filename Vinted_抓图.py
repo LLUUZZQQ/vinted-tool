@@ -18,6 +18,7 @@ from PIL import Image, ImageEnhance, ImageFilter, ImageDraw, ImageFont
 from tqdm import tqdm
 from time import sleep
 import configparser
+from datetime import datetime
 import win32api
 import win32con
 import win32com.client

@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1469,8 +1469,8 @@ class VintedScraperGUI(QMainWindow):
     def _show_help(self):
         dlg = QDialog(self)
         dlg.setWindowTitle("使用说明")
-        dlg.setMinimumSize(520, 520)
-        dlg.resize(560, 580)
+        dlg.setMinimumSize(520, 580)
+        dlg.resize(560, 660)
         dlg.setStyleSheet("""
             QDialog { background-color: #1a1a1a; }
             QLabel { color: #ccc; background: transparent; }
@@ -1513,6 +1513,14 @@ li { margin:2px 0; list-style:none; }
 <li>拖入图片或文件夹到窗口，或点击 <b>本地处理</b> 选择</li>
 <li>支持 JPG / PNG / WebP / BMP 格式</li>
 <li>结果输出到 Processed 文件夹，原图不动</li>
+
+<h2>预览对比</h2>
+<li>在线/本地处理完成后弹窗点击 <b>预览对比</b> 打开</li>
+<li><b>缩略图</b> · 左侧卡片列表，显示差异度分值，点击切换</li>
+<li><b>缩放</b> · 鼠标悬停位置滚轮缩放 1.0x–8.0x，双图同步</li>
+<li><b>拖拽</b> · 放大后左键拖动平移，遵循抓取方向</li>
+<li><b>键盘</b> · ← → 切换图片，Esc 关闭，右键重置缩放</li>
+<li><b>放大</b> · 点击图片弹出大图全屏查看</li>
 
 <h2>常见问题</h2>
 <div class=q>Q: 提示未检测到有效链接？</div>
