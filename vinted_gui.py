@@ -1130,12 +1130,23 @@ class VintedScraperGUI(QMainWindow):
         backend.LOSSLESS_ENABLED = v
         if v:
             self.chk_compress.setChecked(False)
+            if self.chk_advanced_anti_detect.isChecked() or self.chk_deep_anti_duplicate.isChecked():
+                QMessageBox.information(self, "原画输出提示",
+                    "原画输出（quality=100）会跳过 JPEG 质量随机化，\n"
+                    "AI指纹重构和指纹深度重建的防重效果将略微降低。\n\n"
+                    "建议：日常使用建议关闭原画输出，\n"
+                    "需要最高画质时再开启。")
         self._update_dots()
         self._save_config()
 
     def _on_advanced_anti_detect_toggled(self, v):
         self._advanced_anti_detect = v
         backend.ADVANCED_ANTI_DETECT_ENABLED = v
+        if v and self.chk_lossless.isChecked():
+            QMessageBox.information(self, "原画输出提示",
+                "当前已开启原画输出（quality=100），\n"
+                "AI指纹重构的 JPEG 质量随机化将被跳过，\n"
+                "防重效果略微降低。")
         self._update_dots()
         self._save_config()
 
@@ -1157,6 +1168,11 @@ class VintedScraperGUI(QMainWindow):
     def _on_deep_anti_duplicate_toggled(self, v):
         self._deep_anti_duplicate = v
         backend.DEEP_ANTI_DUPLICATE_ENABLED = v
+        if v and self.chk_lossless.isChecked():
+            QMessageBox.information(self, "原画输出提示",
+                "当前已开启原画输出（quality=100），\n"
+                "指纹深度重建的 JPEG 质量随机化将被跳过，\n"
+                "防重效果略微降低。")
         self._update_dots()
         self._save_config()
 
