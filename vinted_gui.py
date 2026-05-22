@@ -983,6 +983,7 @@ class VintedScraperGUI(QMainWindow):
         self.combo_variants.setCurrentText(str(self._deep_variants))
         self._update_dots()
         self._geo_setting_up = False
+        self._update_stats_display()
         if getattr(self, '_restore_urls', ''):
             self.txt_urls.setPlainText(self._restore_urls)
         self._update_url_count()
@@ -1291,8 +1292,7 @@ class VintedScraperGUI(QMainWindow):
             self._export_failed_urls()
 
     def _update_stats_display(self):
-        if self._total_tasks > 0:
-            self.stats_label.setText(f"累计 {self._total_tasks} 次采集 · {self._total_images} 张图像")
+        self.stats_label.setText(f"累计 {self._total_tasks} 次采集 · {self._total_images} 张图像")
 
     def _show_ai_bg_dialog(self):
         QMessageBox.information(self, "AI 背景替换",
