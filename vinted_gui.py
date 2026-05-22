@@ -1505,7 +1505,8 @@ class VintedScraperGUI(QMainWindow):
         wait_dlg.setStandardButtons(QMessageBox.NoButton)
         wait_dlg.setWindowModality(Qt.WindowModal)
         wait_dlg.show()
-        QApplication.processEvents()
+        for _ in range(5):
+            QApplication.processEvents()
         new_exe = update_checker.download_update(url,
             lambda d, t: wait_dlg.setInformativeText(f"正在下载 {d//1024//1024}/{t//1024//1024}MB\n\n更新过程中请勿关闭程序或断开网络，\n下载完成后将自动重启软件。"))
         wait_dlg.close()
