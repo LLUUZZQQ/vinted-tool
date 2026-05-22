@@ -1483,39 +1483,38 @@ class VintedScraperGUI(QMainWindow):
             return
 
         # 进度弹窗
-        progress = QProgressDialog("正在下载更新...", "取消", 0, 100, self)
+        progress = QProgressDialog("正在下载更新...", "", 0, 100, self)
         progress.setWindowTitle("版本更新")
         progress.setWindowModality(Qt.WindowModal)
         progress.setMinimumDuration(0)
         progress.setValue(0)
-        progress.canceled.connect(lambda: None)  # 不允许取消
+        progress.setCancelButton(None)
 
         class DownloadThread(QThread):
-            result = Signal(object)
+            progress_sig = Signal(int)
+            done_sig = Signal(str)
             def __init__(self, url):
                 super().__init__()
                 self.url = url
             def run(self):
                 def cb(d, t):
                     if t > 0:
-                        self.result.emit(("progress", d * 100 // t))
+                        self.progress_sig.emit(d * 100 // t)
                 r = update_checker.download_update(self.url, cb)
-                self.result.emit(("done", r))
+                self.done_sig.emit(r or "")
+
+        def _on_download_done(r):
+            progress.close()
+            if r:
+                self._add_log("正在应用更新...", "info")
+                update_checker.apply_update(r)
+            else:
+                self._add_log("更新下载失败", "error")
+                QMessageBox.critical(self, "更新失败", "下载失败，请稍后重试。")
 
         self._dl_thread = DownloadThread(url)
-        def on_result(data):
-            kind, val = data
-            if kind == "progress":
-                progress.setValue(val)
-            elif kind == "done":
-                progress.close()
-                if val:
-                    self._add_log("正在应用更新...", "info")
-                    update_checker.apply_update(val)
-                else:
-                    self._add_log("更新下载失败", "error")
-                    QMessageBox.critical(self, "更新失败", "下载失败，请稍后重试。")
-        self._dl_thread.result.connect(on_result)
+        self._dl_thread.progress_sig.connect(lambda v: progress.setValue(v))
+        self._dl_thread.done_sig.connect(_on_download_done)
         self._dl_thread.start()
         progress.exec()
 
