@@ -1548,17 +1548,19 @@ li { margin:2px 0; list-style:none; }
         wait_dlg.setStandardButtons(QMessageBox.NoButton)
         wait_dlg.setWindowModality(Qt.WindowModal)
         wait_dlg.show()
-        for _ in range(5):
-            QApplication.processEvents()
-        new_exe = update_checker.download_update(url,
-            lambda d, t: wait_dlg.setInformativeText(f"正在下载 {d//1024//1024}/{t//1024//1024}MB\n\n更新过程中请勿关闭程序或断开网络，\n下载完成后将自动重启软件。"))
-        wait_dlg.close()
-        if not new_exe:
-            self._add_log("更新下载失败", "error")
-            QMessageBox.critical(self, "更新失败", "下载失败，请稍后重试。")
-            return
-        self._add_log("正在应用更新...", "info")
-        update_checker.apply_update(new_exe)
+        QApplication.processEvents()
+        # 延迟 200ms 启动下载，确保对话框完全渲染
+        def _do_download():
+            exe = update_checker.download_update(url,
+                lambda d, t: wait_dlg.setInformativeText(f"正在下载 {d//1024//1024}/{t//1024//1024}MB\n\n更新过程中请勿关闭程序或断开网络，\n下载完成后将自动重启软件。"))
+            wait_dlg.close()
+            if not exe:
+                self._add_log("更新下载失败", "error")
+                QMessageBox.critical(self, "更新失败", "下载失败，请稍后重试。")
+                return
+            self._add_log("正在应用更新...", "info")
+            update_checker.apply_update(exe)
+        QTimer.singleShot(200, _do_download)
 
     # ---- 窗口级拖拽（图片文件/文件夹） ----
     def dragEnterEvent(self, event):
