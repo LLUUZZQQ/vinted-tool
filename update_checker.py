@@ -15,7 +15,7 @@ import subprocess
 UPDATE_URL = "https://vt-proxy.vtmax.workers.dev/update.json"
 
 # 当前版本
-CURRENT_VERSION = "2.9.24"
+CURRENT_VERSION = "2.9.25"
 
 
 def _fetch_json(url, timeout=10):
@@ -61,7 +61,7 @@ def download_update(download_url, progress_callback=None):
                     os.remove(f)
                 except:
                     pass
-        req = urllib.request.Request(download_url, headers={"User-Agent": "ImageMAX/1.0"})
+        req = urllib.request.Request(download_url, headers={"User-Agent": "ImageMAX/1.0", "Accept": "application/octet-stream"})
         with urllib.request.urlopen(req, timeout=600) as resp:
             total = resp.headers.get("Content-Length")
             total = int(total) if total else 0
