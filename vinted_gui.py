@@ -1482,10 +1482,17 @@ class VintedScraperGUI(QMainWindow):
         if reply != QMessageBox.Yes:
             return
         self._add_log(f"正在下载 v{version}...", "info")
-        self.status_label.setText("状态：正在下载更新...")
+        wait_dlg = QMessageBox(self)
+        wait_dlg.setWindowTitle("版本更新")
+        wait_dlg.setText("正在下载更新，请稍候...")
+        wait_dlg.setInformativeText("更新过程中请勿关闭程序或断开网络，\n下载完成后将自动重启软件。")
+        wait_dlg.setStandardButtons(QMessageBox.NoButton)
+        wait_dlg.setWindowModality(Qt.WindowModal)
+        wait_dlg.show()
         QApplication.processEvents()
         new_exe = update_checker.download_update(url,
-            lambda d, t: self.status_label.setText(f"状态：正在下载更新 {d//1024//1024}/{t//1024//1024}MB"))
+            lambda d, t: wait_dlg.setInformativeText(f"正在下载 {d//1024//1024}/{t//1024//1024}MB\n\n更新过程中请勿关闭程序或断开网络，\n下载完成后将自动重启软件。"))
+        wait_dlg.close()
         if not new_exe:
             self._add_log("更新下载失败", "error")
             QMessageBox.critical(self, "更新失败", "下载失败，请稍后重试。")

@@ -1,0 +1,73 @@
+# -*- coding: utf-8 -*-
+block_cipher = None
+
+a = Analysis(
+    ['vinted_gui.py'],
+    pathex=[],
+    binaries=[
+        ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/vcruntime140.dll', '.'),
+        ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/vcruntime140_1.dll', '.'),
+        ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/Lib/site-packages/PySide6/msvcp140.dll', '.'),
+        ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/Lib/site-packages/PySide6/msvcp140_1.dll', '.'),
+        ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/Lib/site-packages/PySide6/msvcp140_2.dll', '.'),
+        ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/Lib/site-packages/PySide6/concrt140.dll', '.'),
+        ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/Lib/site-packages/PySide6/vccorlib140.dll', '.'),
+        ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/Lib/site-packages/PySide6/opengl32sw.dll', '.'),
+    ],
+    datas=[
+        ('vinted_style.qss', '.'),
+        ('chromedriver.exe', '.'),
+        ('app_icon.ico', '.'),
+        ('用户须知.txt', '.'),
+        ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/Lib/site-packages/PySide6/plugins', './PySide6/plugins'),
+    ],
+    hiddenimports=[
+        'license_system', 'update_checker', 'Vinted_抓图',
+        'cryptography', 'webdriver_manager',
+        'piexif', 'numpy',
+        'PIL', 'PIL.Image', 'PIL.ImageEnhance', 'PIL.ImageFilter',
+        'PIL.ImageDraw', 'PIL.ImageFont',
+        'selenium', 'selenium.webdriver',
+        'selenium.webdriver.chrome', 'selenium.webdriver.chrome.options',
+        'selenium.webdriver.chrome.service', 'selenium.webdriver.chrome.webdriver',
+        'selenium.webdriver.common', 'selenium.webdriver.common.by',
+        'selenium.webdriver.support', 'selenium.webdriver.support.ui',
+        'selenium.webdriver.support.expected_conditions',
+        'selenium.common', 'selenium.common.exceptions',
+        'win32api', 'win32con', 'win32com', 'win32com.client',
+        'requests', 'urllib3',
+        'configparser', 'shutil', 'hashlib', 'string', 'threading',
+    ],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=['tkinter', 'matplotlib', 'scipy', 'pandas', 'jedi', 'IPython'],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+exe = EXE(
+    pyz, a.scripts, [],
+    exclude_binaries=True,
+    name='ImageMAX',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=True,
+    upx=True,
+    upx_exclude=['qt6','opengl32sw','vcruntime','msvcp','concrt','vccorlib'],
+    console=False,
+    disable_windowed_traceback=True,
+    icon='app_icon.ico',
+)
+
+coll = COLLECT(
+    exe, a.binaries, a.zipfiles, a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=['qt6','opengl32sw','vcruntime','msvcp','concrt','vccorlib'],
+    name='ImageMAX',
+)
