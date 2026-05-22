@@ -1,1 +1,1 @@
-{"version":"3.0.3","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.0.3/ImageMAX.exe","changelog":"在线采集支持多版本变体输出；文件夹拖拽支持子目录；按钮文本规范统一。"}
+{"version":"3.0.4","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.0.4/ImageMAX.exe","changelog":"在线采集按会话自动创建Crawl_时间戳子文件夹，与本地处理统一。"}

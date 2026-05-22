@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1241,7 +1241,7 @@ class VintedScraperGUI(QMainWindow):
     def _on_task_finished(self, stopped):
         self._set_ui_running(False)
         self._worker = None
-        self._last_output_dir = backend.CUSTOM_SAVE_ROOT if backend.CUSTOM_SAVE_ROOT and os.path.isdir(backend.CUSTOM_SAVE_ROOT) else None
+        self._last_output_dir = backend.SESSION_SAVE_ROOT if backend.SESSION_SAVE_ROOT and os.path.isdir(backend.SESSION_SAVE_ROOT) else None
         self.status_label.setText(_tr("状态：已停止") if stopped else "处理完成")
         _session_images = backend.TOTAL_IMAGES
         if not stopped:

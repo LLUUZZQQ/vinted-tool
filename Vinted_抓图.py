@@ -117,6 +117,7 @@ CONFIG_FILE = "vinted_config.ini"
 STOP_TASK = False
 LOG_FILE = ""
 CUSTOM_SAVE_ROOT = DEFAULT_SAVE_ROOT
+SESSION_SAVE_ROOT = ""  # 当前会话实际保存目录（含时间戳子文件夹）
 SELECTED_COUNTRY = None
 SELECTED_CITY = None
 SELECTED_GPS_MODE = None
@@ -1433,7 +1434,7 @@ def _cleanup_old_logs(save_root, days=3):
 
 
 def start_crawl_task(urls_text, debug_mode, wait_time=0):
-    global STOP_TASK, LOG_FILE, CUSTOM_SAVE_ROOT, TOTAL_TASKS, CURRENT_TASK, SUCCESS_COUNT, FAIL_COUNT, FAILED_URLS
+    global STOP_TASK, LOG_FILE, CUSTOM_SAVE_ROOT, SESSION_SAVE_ROOT, TOTAL_TASKS, CURRENT_TASK, SUCCESS_COUNT, FAIL_COUNT, FAILED_URLS
     import time as _time
     _start = _time.time()
 
@@ -1453,10 +1454,14 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
     global TOTAL_IMAGES
     TOTAL_IMAGES = 0
 
-    save_root = CUSTOM_SAVE_ROOT.strip() or DEFAULT_SAVE_ROOT
-    if not os.path.exists(save_root):
-        os.makedirs(save_root)
-    _cleanup_old_logs(save_root, days=3)
+    base_root = CUSTOM_SAVE_ROOT.strip() or DEFAULT_SAVE_ROOT
+    if not os.path.exists(base_root):
+        os.makedirs(base_root)
+    _cleanup_old_logs(base_root, days=3)
+    ts = datetime.now().strftime("%Y%m%d_%H%M")
+    save_root = os.path.join(base_root, f"Crawl_{ts}")
+    os.makedirs(save_root, exist_ok=True)
+    SESSION_SAVE_ROOT = save_root
     LOG_FILE = os.path.join(save_root, "Process_Log.txt")
     with open(LOG_FILE, "w", encoding="utf-8") as f:
         f.write("")
