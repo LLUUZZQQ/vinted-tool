@@ -1497,11 +1497,14 @@ class VintedScraperGUI(QMainWindow):
                 super().__init__()
                 self.url = url
             def run(self):
-                def cb(d, t):
-                    if t > 0:
-                        self.progress_sig.emit(d * 100 // t)
-                r = update_checker.download_update(self.url, cb)
-                self.done_sig.emit(r or "")
+                try:
+                    def cb(d, t):
+                        if t > 0:
+                            self.progress_sig.emit(d * 100 // t)
+                    r = update_checker.download_update(self.url, cb)
+                    self.done_sig.emit(r or "")
+                except Exception:
+                    self.done_sig.emit("")
 
         def _on_download_done(r):
             progress.close()
