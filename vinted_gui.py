@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -61,6 +61,11 @@ _RELEASE_DICT = {
     "恢复默认": "重置",
     "清空日志": "清空",
     "检查更新": "版本更新",
+    "预览对比": "预览对比",
+    "关闭": "关闭",
+    "浏览文件夹": "浏览文件夹",
+    "处理完成": "处理完成",
+    "本地处理完成，成功": "本地处理完成，成功",
     "激活软件": "激活",
     "验证中...": "验证中...",
     "复制": "复制",
@@ -1279,9 +1284,9 @@ class VintedScraperGUI(QMainWindow):
         msg.setText(_tr(f"任务执行完毕"))
         msg.setInformativeText(info)
         msg.setStyleSheet("QMessageBox QLabel#qt_msgbox_informativelabel { font-size: 13px; }")
-        btn_open = msg.addButton("浏览文件", QMessageBox.ActionRole)
-        btn_preview = msg.addButton("预览对比", QMessageBox.ActionRole)
-        btn_clear = msg.addButton("清空队列", QMessageBox.ActionRole)
+        btn_open = msg.addButton(_tr("打开目录"), QMessageBox.ActionRole)
+        btn_preview = msg.addButton(_tr("预览对比"), QMessageBox.ActionRole)
+        btn_clear = msg.addButton(_tr("清空队列"), QMessageBox.ActionRole)
         btn_export = None
         if backend.FAILED_URLS:
             btn_export = msg.addButton("导出失败项", QMessageBox.ActionRole)
@@ -1453,8 +1458,8 @@ class VintedScraperGUI(QMainWindow):
             msg.setWindowTitle("处理完成")
             msg.setText(f"本地处理完成，成功 {ok} 张")
             msg.setStandardButtons(QMessageBox.Ok)
-            btn_open = msg.addButton("浏览文件", QMessageBox.ActionRole)
-            btn_preview = msg.addButton("预览对比", QMessageBox.ActionRole)
+            btn_open = msg.addButton(_tr("打开目录"), QMessageBox.ActionRole)
+            btn_preview = msg.addButton(_tr("预览对比"), QMessageBox.ActionRole)
             msg.exec()
             if msg.clickedButton() == btn_open:
                 self._open_save_dir()
@@ -1760,12 +1765,12 @@ li { margin:2px 0; list-style:none; }
 
         # ---- 底部按钮 ----
         bottom = QHBoxLayout()
-        btn_browse = QPushButton("浏览文件夹")
+        btn_browse = QPushButton(_tr("浏览文件夹"))
         btn_browse.setStyleSheet("QPushButton { background: #2a2a2a; color: #ccc; border: 1px solid #333; border-radius: 5px; padding: 6px 14px; font-size: 12px; } QPushButton:hover { background: #3a3a3a; color: #fff; }")
         btn_browse.clicked.connect(lambda: (dlg.accept(), self._open_save_dir()))
         bottom.addWidget(btn_browse)
         bottom.addStretch()
-        btn_close = QPushButton("关闭")
+        btn_close = QPushButton(_tr("关闭"))
         btn_close.setStyleSheet("QPushButton { background: #2a2a2a; color: #ccc; border: 1px solid #333; border-radius: 5px; padding: 6px 16px; font-size: 12px; } QPushButton:hover { background: #3a3a3a; color: #fff; }")
         btn_close.clicked.connect(dlg.close)
         bottom.addWidget(btn_close)
@@ -2076,8 +2081,8 @@ li { margin:2px 0; list-style:none; }
             p = url.toLocalFile()
             if os.path.isdir(p):
                 for ext in ('.jpg', '.jpeg', '.png', '.webp', '.bmp'):
-                    paths.extend(glob.glob(os.path.join(p, '*'+ext)))
-                    paths.extend(glob.glob(os.path.join(p, '*'+ext.upper())))
+                    paths.extend(glob.glob(os.path.join(p, '**', '*'+ext), recursive=True))
+                    paths.extend(glob.glob(os.path.join(p, '**', '*'+ext.upper()), recursive=True))
             elif p.lower().endswith(('.jpg', '.jpeg', '.png', '.webp', '.bmp')):
                 paths.append(p)
         if paths:

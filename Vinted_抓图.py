@@ -1209,7 +1209,19 @@ def _download_single_image(args):
                     with open(temp_path, "wb") as f:
                         f.write(res.content)
                     write_log(f"第{img_idx + 1}张下载成功 | {round(len(res.content)/1024, 2)}KB", "success")
-                    result = process_image(temp_path)
+                    # 深度模式多版本：复制变体副本再分别处理
+                    variants = DEEP_MODE_VARIANTS if DEEP_ANTI_DUPLICATE_ENABLED else 1
+                    if variants > 1:
+                        result = True
+                        for v in range(2, variants + 1):
+                            v_path = os.path.join(save_folder, f"temp_{img_idx + 1}_v{v}.{ext}")
+                            shutil.copy2(temp_path, v_path)
+                            if not process_image(v_path):
+                                result = False
+                        if not process_image(temp_path):
+                            result = False
+                    else:
+                        result = process_image(temp_path)
                     session.close()
                     return result
                 else:
