@@ -7,6 +7,11 @@ a = Analysis(
     binaries=[
         ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/vcruntime140.dll', '.'),
         ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/vcruntime140_1.dll', '.'),
+        ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/Lib/site-packages/PySide6/msvcp140.dll', '.'),
+        ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/Lib/site-packages/PySide6/msvcp140_1.dll', '.'),
+        ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/Lib/site-packages/PySide6/msvcp140_2.dll', '.'),
+        ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/Lib/site-packages/PySide6/concrt140.dll', '.'),
+        ('C:/Users/LUZQ/AppData/Local/Programs/Python/Python310/Lib/site-packages/PySide6/vccorlib140.dll', '.'),
     ],
     datas=[
         ('vinted_style.qss', '.'),
