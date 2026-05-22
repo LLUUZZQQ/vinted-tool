@@ -638,6 +638,7 @@ class VintedScraperGUI(QMainWindow):
         self._device_crop = cfg.get("device_crop", "False") == "True"
         self._device_model = cfg.get("device_model", "随机")
         self._deep_anti_duplicate = cfg.get("deep_anti_duplicate", "False") == "True"
+        self._help_shown = cfg.get("help_shown", "False") == "True"
         self._deep_variants = int(cfg.get("deep_variants", "2"))
 
         backend.CUSTOM_SAVE_ROOT = self._save_path
@@ -689,6 +690,7 @@ class VintedScraperGUI(QMainWindow):
             "device_crop": str(self._device_crop),
             "device_model": self._device_model,
             "deep_anti_duplicate": str(self._deep_anti_duplicate),
+            "help_shown": str(self._help_shown),
             "deep_variants": str(self._deep_variants),
             "total_images": str(self._total_images),
             "total_tasks": str(self._total_tasks),
@@ -1441,40 +1443,81 @@ class VintedScraperGUI(QMainWindow):
         self._add_log(f"✅ 本地防重完成，成功 {ok} 张", "success")
 
     def _show_help(self):
-        import os as _os
-        # 尝试读取用户须知文件
-        paths = [
-            _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "用户须知.txt"),
-            _os.path.join(_os.path.dirname(sys.executable), "用户须知.txt"),
-            _os.path.join(getattr(sys, '_MEIPASS', ''), "用户须知.txt"),
-        ]
-        text = ""
-        for p in paths:
-            if _os.path.exists(p):
-                with open(p, "r", encoding="utf-8") as f:
-                    text = f.read()
-                break
-        if not text:
-            text = "用户须知文件未找到，请联系管理员。"
         dlg = QDialog(self)
         dlg.setWindowTitle("使用说明")
-        dlg.setMinimumSize(480, 500)
-        dlg.resize(520, 560)
-        layout = QVBoxLayout(dlg)
-        layout.setContentsMargins(16, 12, 16, 12)
-        view = QPlainTextEdit()
-        view.setReadOnly(True)
-        view.setPlainText(text)
-        view.setStyleSheet("""
-            QPlainTextEdit { font-family: 'Microsoft YaHei', sans-serif; font-size: 13px;
-            background: #ffffff; border: 1px solid #e5e7eb; border-radius: 6px;
-            padding: 8px; color: #374151; }
+        dlg.setMinimumSize(520, 520)
+        dlg.resize(560, 580)
+        dlg.setStyleSheet("""
+            QDialog { background-color: #1a1a1a; }
+            QLabel { color: #ccc; background: transparent; }
+            QTextBrowser { border: 1px solid #333; border-radius: 8px; padding: 16px;
+                background-color: #222; color: #bbb; }
         """)
-        layout.addWidget(view)
+        layout = QVBoxLayout(dlg)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(0)
+
+        html = """<style>
+body { font-family: 'Microsoft YaHei','PingFang SC',sans-serif; font-size:14px; color:#bbb; line-height:1.8; margin:0; background:#222; text-align:center; }
+li { text-align:left; display:inline-block; width:100%; }
+h2 { font-size:17px; color:#e0e0e0; margin:20px 0 8px 0; padding-bottom:6px; border-bottom:1px solid #2a2a2a; }
+h2:first-child { margin-top:0; }
+b { color:#e0e0e0; }
+.q { color:#10b981; font-weight:600; margin-top:12px; }
+.a { color:#888; margin-left:0; margin-bottom:4px; }
+.num { display:inline-block; background:#333; color:#ccc; width:20px; height:20px; border-radius:10px; text-align:center; line-height:20px; font-size:11px; margin-right:6px; }
+li { margin:2px 0; list-style:none; }
+</style>
+<h2>使用步骤</h2>
+<li><span class=num>1</span> 粘贴商品链接，一行一个</li>
+<li><span class=num>2</span> 勾选需要的处理配置（推荐全开）</li>
+<li><span class=num>3</span> 设置保存路径</li>
+<li><span class=num>4</span> 设置国家城市</li>
+<li><span class=num>5</span> 点击 <b>开始采集</b></li>
+<li><span class=num>6</span> 完成后点击 <b>浏览文件</b></li>
+
+<h2>处理配置</h2>
+<li><b>智能画质</b> &nbsp;智能优化图像体积，兼顾画质与上传速度</li>
+<li><b>原画输出</b> &nbsp;无损级保留全部图像细节，与智能画质互斥</li>
+<li><b>数字水印</b> &nbsp;嵌入不可见数字标识，可用于版权保护</li>
+<li><b>AI指纹重构</b> &nbsp;多维重建图像特征空间，推荐始终开启</li>
+<li><b>指纹深度重建</b> &nbsp;深层结构重组，适用于补图或旧图翻新场景</li>
+<li><b>机型自定义</b> &nbsp;模拟指定设备成像特征，保持随机即可</li>
+<li style='color:#666;font-size:12px;margin-top:6px;'>提示：AI指纹重构和指纹深度重建涉及图像重编码，画质会有轻微下降，日常使用建议仅开启AI指纹重构即可</li>
+
+<h2>本地处理</h2>
+<li>拖入图片或文件夹到窗口，或点击 <b>本地处理</b> 选择</li>
+<li>支持 JPG / PNG / WebP / BMP 格式</li>
+<li>结果输出到 Processed 文件夹，原图不动</li>
+
+<h2>常见问题</h2>
+<div class=q>Q: 提示未检测到有效链接？</div>
+<div class=a>A: 请检查链接格式是否正确。</div>
+<div class=q>Q: 处理后图片看起来一样？</div>
+<div class=a>A: 肉眼一样但数字指纹已完全重建。</div>
+<div class=q>Q: 提示授权已过期？</div>
+<div class=a>A: 联系管理员续期，获取新激活码重新激活。</div>
+<div class=q>Q: 软件闪退或报错？</div>
+<div class=a>A: 确认杀毒软件没有拦截，加入白名单。</div>
+
+<div style='color:#555;font-size:12px;text-align:center;margin-top:24px;'>微信：UU_L777777</div>"""
+
+        from PySide6.QtWidgets import QTextBrowser
+        view = QTextBrowser()
+        view.setHtml(html)
+        view.setStyleSheet("")
+        view.setOpenExternalLinks(False)
+        layout.addWidget(view, 1)
+
         btn = QPushButton("关闭")
-        btn.setStyleSheet("QPushButton { padding: 6px 20px; }")
+        btn.setFixedWidth(100)
+        btn.setStyleSheet("QPushButton { background:#333; color:#ccc; border:1px solid #444; border-radius:6px; padding:6px 20px; font-size:13px; } QPushButton:hover { background:#3a3a3a; border-color:#555; }")
         btn.clicked.connect(dlg.accept)
-        layout.addWidget(btn, 0, Qt.AlignCenter)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_row.addWidget(btn)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
         dlg.exec()
 
     def _auto_check_update(self):
@@ -1618,7 +1661,26 @@ def main():
     tamper_timer.timeout.connect(lambda: _check_tamper(window))
     tamper_timer.start(60000)  # 每分钟检查一次
     window.show()
+    if not window._help_shown:
+        QTimer.singleShot(500, lambda: _welcome_guide(window))
+        window._help_shown = True
+        window._save_config()
     sys.exit(app.exec())
+
+def _welcome_guide(window):
+    QMessageBox.information(window, "欢迎",
+        "欢迎使用图像重构MAX！\n\n"
+        "使用前建议先查看完整教程，\n"
+        "点击右上角「使用说明」即可。")
+    # 按钮闪烁引导
+    btn = window.btn_help
+    original = btn.styleSheet()
+    for i in range(4):
+        color = "#10b981" if i % 2 == 0 else "#b0b0b0"
+        QTimer.singleShot(i * 600 + 100, lambda c=color, b=btn: b.setStyleSheet(
+            f"QPushButton {{ font-size: 11px; color: {c}; border: 1px solid {c}; "
+            f"border-radius: 4px; padding: 2px 8px; background: transparent; }}"))
+    QTimer.singleShot(2600, lambda: btn.setStyleSheet(original))
 
 
 def _check_tamper(window):
