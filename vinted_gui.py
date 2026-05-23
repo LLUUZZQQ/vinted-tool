@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -2176,12 +2176,23 @@ li { margin:2px 0; list-style:none; }
 
     # ---- 关闭 ----
     def closeEvent(self, event):
+        running = []
         if self._worker and self._worker.isRunning():
-            reply = QMessageBox.question(self, "退出", "任务正在运行中，确定退出？")
+            running.append("图片采集")
+        if self._local_worker and self._local_worker.isRunning():
+            running.append("本地处理")
+        if getattr(self, '_update_thread', None) and self._update_thread.isRunning():
+            running.append("版本更新")
+        if running:
+            reply = QMessageBox.question(self, "退出", "{}正在运行中，确定退出？".format("、".join(running)))
             if reply == QMessageBox.Yes:
                 backend.STOP_TASK = True
-                self._worker.quit()
-                self._worker.wait(3000)
+                for w in [self._worker, self._local_worker]:
+                    if w and w.isRunning():
+                        w.quit()
+                        w.wait(3000)
+                if getattr(self, '_update_thread', None) and self._update_thread.isRunning():
+                    self._update_thread.wait(3000)
                 self._save_geometry()
                 event.accept()
             else:

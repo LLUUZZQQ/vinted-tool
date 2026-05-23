@@ -157,6 +157,7 @@ FAIL_COUNT = 0
 FAILED_URLS = []
 FAIL_REASONS = {}
 TOTAL_IMAGES = 0   # 累计处理图片数（GUI 统计用）
+_images_lock = threading.Lock()
 COMPRESS_ENABLED = False
 WATERMARK_ENABLED = False
 LOSSLESS_ENABLED = False  # 无损画质模式：quality=100 + 4:4:4
@@ -1049,7 +1050,8 @@ def process_image(image_path, skip_gps=False):
                 new_md5 = hashlib.md5(f.read()).hexdigest()
             write_log(f"✅ 防重处理成功 | {new_filename} | {file_size}KB | Q={save_quality} SS={subsampling} | MD5={new_md5[:12]}...", "success")
         global TOTAL_IMAGES
-        TOTAL_IMAGES += 1
+        with _images_lock:
+            TOTAL_IMAGES += 1
         return True
     except Exception as e:
         write_log(f"❌ 图片处理失败 | 路径：{image_path} | 错误：{e}", "error")
@@ -1277,6 +1279,8 @@ def _download_single_image(args):
         return False
     except:
         return False
+    finally:
+        session.close()
 
 
 def scrape_vinted_by_browser(url, save_folder, debug_mode, driver=None, wait_time=0):
@@ -1475,6 +1479,22 @@ def _cleanup_old_logs(save_root, days=3):
         pass
 
 
+def _download_batch(img_urls, save_folder, download_headers, session=None):
+    """并发下载图片批次，返回 (ok, fail)。session 不为 None 时使用共享 session"""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    results = []
+    worker_f = _download_depop_image if session is not None else _download_single_image
+    arg_template = (session,) if session is not None else ({},)
+    download_args = [(u, save_folder, download_headers, *arg_template, i)
+                     for i, u in enumerate(img_urls)]
+    with ThreadPoolExecutor(max_workers=min(DOWNLOAD_WORKERS, len(img_urls))) as executor:
+        futures = {executor.submit(worker_f, arg): arg for arg in download_args}
+        for future in as_completed(futures):
+            results.append(future.result())
+    ok = sum(1 for r in results if r)
+    return ok, len(img_urls) - ok
+
+
 def _download_depop_image(args):
     """用共享 requests session 下载单张 Depop 图片"""
     img_url, save_folder, download_headers, session, img_idx = args
@@ -1641,7 +1661,6 @@ def scrape_depop_by_browser(url, save_folder, debug_mode, driver=None):
 
         ok = sum(1 for r in results if r)
         fail = len(results) - ok
-        FAIL_COUNT += fail
         if fail > 0:
             write_log(f"❌ {fail} 张图片下载失败", "error")
         write_log(f"✅ Depop 商品处理完成：成功 {ok}/{len(img_urls)} 张", "success")
@@ -1747,7 +1766,6 @@ def scrape_vc_by_browser(url, save_folder, debug_mode, driver=None):
 
         ok = sum(1 for r in results if r)
         fail = len(results) - ok
-        FAIL_COUNT += fail
         if fail > 0:
             write_log(f"❌ {fail} 张图片下载失败", "error")
         write_log(f"✅ VC 商品处理完成：成功 {ok}/{len(img_urls)} 张", "success")
@@ -1847,7 +1865,6 @@ def scrape_poshmark_by_browser(url, save_folder, debug_mode, driver=None):
 
         ok = sum(1 for r in results if r)
         fail = len(results) - ok
-        FAIL_COUNT += fail
         if fail > 0:
             write_log(f"❌ {fail} 张图片下载失败", "error")
         write_log(f"✅ Poshmark 商品处理完成：成功 {ok}/{len(img_urls)} 张", "success")
@@ -1948,7 +1965,6 @@ def scrape_grailed_by_browser(url, save_folder, debug_mode, driver=None):
 
         ok = sum(1 for r in results if r)
         fail = len(results) - ok
-        FAIL_COUNT += fail
         if fail > 0:
             write_log(f"❌ {fail} 张图片下载失败", "error")
         write_log(f"✅ Grailed 商品处理完成：成功 {ok}/{len(img_urls)} 张", "success")
@@ -2047,7 +2063,6 @@ def scrape_mercari_by_browser(url, save_folder, debug_mode, driver=None):
 
         ok = sum(1 for r in results if r)
         fail = len(results) - ok
-        FAIL_COUNT += fail
         if fail > 0:
             write_log("❌ {} 张图片下载失败".format(fail), "error")
         write_log("✅ Mercari 商品处理完成：成功 {}/{} 张".format(ok, len(img_urls)), "success")
@@ -2150,7 +2165,6 @@ def scrape_wallapop_by_browser(url, save_folder, debug_mode, driver=None):
 
         ok = sum(1 for r in results if r)
         fail = len(results) - ok
-        FAIL_COUNT += fail
         if fail > 0:
             write_log("❌ {} 张图片下载失败".format(fail), "error")
         write_log("✅ Wallapop 商品处理完成：成功 {}/{} 张".format(ok, len(img_urls)), "success")
