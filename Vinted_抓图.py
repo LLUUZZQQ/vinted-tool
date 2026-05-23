@@ -968,16 +968,17 @@ def process_image(image_path, skip_gps=False):
         exif_bytes = b""
         if not skip_gps:
             try:
-                try:
-                    thumb = img.copy()
-                    thumb.thumbnail((160, 120))
-                    thumb_buf = io.BytesIO()
-                    thumb.save(thumb_buf, format="JPEG", quality=60)
-                    exif_dict["thumbnail"] = thumb_buf.getvalue()
-                    exif_dict["0th"][piexif.ImageIFD.XPComment] = \
-                        random.choice(["Edited with Snapseed", "VSCO", "Lightroom CC", "Photos", ""]).encode('utf-16-le')
-                except Exception as e:
-                    pass
+                if ADVANCED_ANTI_DETECT_ENABLED:
+                    try:
+                        thumb = img.copy()
+                        thumb.thumbnail((160, 120))
+                        thumb_buf = io.BytesIO()
+                        thumb.save(thumb_buf, format="JPEG", quality=60)
+                        exif_dict["thumbnail"] = thumb_buf.getvalue()
+                        exif_dict["0th"][piexif.ImageIFD.XPComment] = \
+                            random.choice(["Edited with Snapseed", "VSCO", "Lightroom CC", "Photos", ""]).encode('utf-16-le')
+                    except Exception as e:
+                        pass
                 exif_bytes = piexif.dump(exif_dict)
             except Exception as e:
                 write_log(f"EXIF dump异常: {e}", "warning")
