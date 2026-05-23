@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -53,7 +53,8 @@ _RELEASE_DICT = {
     "开始抓取": "开始采集",
     "停止任务": "终止",
     "打开目录": "浏览文件",
-    "本地防重 ▾": "本地处理 ▾",
+    "📷 处理本地图片 ▾": "📷 处理本地图片 ▾",
+    "💡 拖入图片或文件夹到窗口即可处理本地图片": "💡 拖入图片或文件夹到窗口即可处理本地图片",
     "一键清空": "清空",
     "批量导入": "导入",
     "链接去重": "去重",
@@ -603,12 +604,12 @@ class VintedScraperGUI(QMainWindow):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         if RELEASE_MODE:
-            self.setMinimumSize(460, 600)
-            self.setMaximumHeight(600)
-            self.resize(520, 600)
+            self.setMinimumSize(460, 620)
+            self.setMaximumHeight(620)
+            self.resize(520, 620)
         else:
-            self.setMinimumSize(460, 680)
-            self.resize(520, 730)
+            self.setMinimumSize(460, 700)
+            self.resize(520, 750)
 
         screen = QApplication.primaryScreen().geometry()
         self.move((screen.width() - 500) // 2, (screen.height() - self.height()) // 2)
@@ -759,6 +760,10 @@ class VintedScraperGUI(QMainWindow):
         self.txt_urls.setPlaceholderText(_tr("粘贴商品链接，一行一个...（也可拖拽 .txt 文件）"))
         self.txt_urls.setMaximumHeight(68)
         lo.addWidget(self.txt_urls)
+
+        hint = QLabel(_tr("💡 拖入图片或文件夹到窗口即可处理本地图片"))
+        hint.setStyleSheet("font-size:10px; color:#888; background:transparent; padding:2px 4px;")
+        lo.addWidget(hint)
 
         btn = QHBoxLayout()
         btn.setSpacing(6)
@@ -945,7 +950,7 @@ class VintedScraperGUI(QMainWindow):
         self.btn_open_dir = QPushButton(_tr("打开目录"))
         self.btn_open_dir.setObjectName("btnSecondary")
         btn.addWidget(self.btn_open_dir)
-        self.btn_local = QPushButton(_tr("本地防重 ▾"))
+        self.btn_local = QPushButton(_tr("📷 处理本地图片 ▾"))
         self.btn_local.setObjectName("btnSecondary")
         btn.addWidget(self.btn_local)
         self.btn_ai_bg = QPushButton("AI 背景替换")
