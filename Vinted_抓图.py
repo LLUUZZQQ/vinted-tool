@@ -123,6 +123,10 @@ SELECTED_COUNTRY = None
 SELECTED_CITY = None
 SELECTED_GPS_MODE = None
 SELECTED_GPS_DATA = None
+SESSION_GPS = None   # (lat, lon, city_name) 会话级GPS
+SESSION_EXIF = None  # (make, model, software, dev_model, exposure, fnum, iso, lens) 会话级EXIF
+SESSION_JPEG = None  # (quality, subsampling) 会话级JPEG参数
+SESSION_DT_BASE = None  # 会话起始时间，每张图递增几分钟
 TOTAL_TASKS = 0
 CURRENT_TASK = 0
 SUCCESS_COUNT = 0
@@ -827,20 +831,25 @@ def process_image(image_path, skip_gps=False):
         exif_bytes = b""
         if not skip_gps:
             try:
-                random_year = random.randint(2024, 2026)
-                random_month = random.randint(1, 12)
-                random_day = random.randint(1, 28)
-                random_hour = random.randint(0, 23)
-                random_min = random.randint(0, 59)
-                random_sec = random.randint(0, 59)
-                dt = f"{random_year}:{random_month:02d}:{random_day:02d} {random_hour:02d}:{random_min:02d}:{random_sec:02d}"
-
-                exif_dict = {"0th": {}, "Exif": {}, "GPS": {}}
-                if SELECTED_DEVICE != "随机" and SELECTED_DEVICE in DEVICE_INFO_MAP:
-                    make, model, software = DEVICE_INFO_MAP[SELECTED_DEVICE]
+                # 会话级 EXIF：同批次共享设备、曝光参数，时间递增
+                from datetime import timedelta
+                if SESSION_EXIF:
+                    make, model, software, dev_model, exposure, fnum, iso, lens = SESSION_EXIF
                 else:
                     models = list(DEVICE_INFO_MAP.keys())
-                    make, model, software = DEVICE_INFO_MAP[random.choice(models)]
+                    dev_model = random.choice(models)
+                    make, model, software = DEVICE_INFO_MAP[dev_model]
+                    exposure = (random.randint(1, 200), 1000)
+                    fnum = (random.randint(16, 28), 10)
+                    iso = random.randint(50, 1600)
+                    lens = f"f/{random.uniform(1.8, 5.6):.1f} {random.randint(12, 200)}mm"
+                if SESSION_DT_BASE:
+                    SESSION_DT_BASE += timedelta(minutes=random.randint(1, 5))
+                    dt = SESSION_DT_BASE.strftime("%Y:%m:%d %H:%M:%S")
+                else:
+                    dt = datetime.now().strftime("%Y:%m:%d %H:%M:%S")
+
+                exif_dict = {"0th": {}, "Exif": {}, "GPS": {}}
                 exif_dict["0th"] = {
                     piexif.ImageIFD.Make: make,
                     piexif.ImageIFD.Model: model,
@@ -849,15 +858,21 @@ def process_image(image_path, skip_gps=False):
                     piexif.ImageIFD.Orientation: 1,
                 }
                 exif_dict["Exif"] = {
-                    piexif.ExifIFD.ExposureTime: (random.randint(1, 200), 1000),
-                    piexif.ExifIFD.FNumber: (random.randint(16, 28), 10),
-                    piexif.ExifIFD.ISOSpeedRatings: random.randint(50, 1600),
+                    piexif.ExifIFD.ExposureTime: exposure,
+                    piexif.ExifIFD.FNumber: fnum,
+                    piexif.ExifIFD.ISOSpeedRatings: iso,
                     piexif.ExifIFD.DateTimeOriginal: dt,
-                    piexif.ExifIFD.LensModel: f"f/{random.uniform(1.8, 5.6):.1f} {random.randint(12, 200)}mm",
+                    piexif.ExifIFD.LensModel: lens,
                 }
 
                 final_lat, final_lon, final_city = None, None, None
-                if SELECTED_CITY == "全国随机":
+                if SESSION_GPS:
+                    # 同一会话共享 GPS，加微小抖动模拟同地点多次拍摄
+                    base_lat, base_lon, city_name = SESSION_GPS
+                    final_lat = base_lat + random.uniform(-0.001, 0.001)
+                    final_lon = base_lon + random.uniform(-0.001, 0.001)
+                    final_city = city_name
+                elif SELECTED_CITY == "全国随机":
                     country = SELECTED_COUNTRY
                     if country not in GEO_DATA:
                         country = "法国"
@@ -927,17 +942,16 @@ def process_image(image_path, skip_gps=False):
         exif_bytes = b""
         if not skip_gps:
             try:
-                if ADVANCED_ANTI_DETECT_ENABLED:
-                    try:
-                        thumb = img.copy()
-                        thumb.thumbnail((160, 120))
-                        thumb_buf = io.BytesIO()
-                        thumb.save(thumb_buf, format="JPEG", quality=60)
-                        exif_dict["thumbnail"] = thumb_buf.getvalue()
-                        exif_dict["0th"][piexif.ImageIFD.XPComment] = \
-                            random.choice(["Edited with Snapseed", "VSCO", "Lightroom CC", "Photos", ""]).encode('utf-16-le')
-                    except Exception as e:
-                        write_log(f"EXIF缩略图跳过: {e}", "warning")
+                try:
+                    thumb = img.copy()
+                    thumb.thumbnail((160, 120))
+                    thumb_buf = io.BytesIO()
+                    thumb.save(thumb_buf, format="JPEG", quality=60)
+                    exif_dict["thumbnail"] = thumb_buf.getvalue()
+                    exif_dict["0th"][piexif.ImageIFD.XPComment] = \
+                        random.choice(["Edited with Snapseed", "VSCO", "Lightroom CC", "Photos", ""]).encode('utf-16-le')
+                except Exception as e:
+                    pass
                 exif_bytes = piexif.dump(exif_dict)
             except Exception as e:
                 write_log(f"EXIF dump异常: {e}", "warning")
@@ -953,8 +967,10 @@ def process_image(image_path, skip_gps=False):
             except Exception as e:
                 write_log(f"PNG中间转换跳过: {e}", "warning")
 
-        # JPEG 保存策略
-        if LOSSLESS_ENABLED:
+        # JPEG 保存策略（会话级一致性）
+        if SESSION_JPEG:
+            save_quality, subsampling = SESSION_JPEG
+        elif LOSSLESS_ENABLED:
             save_quality = 100
             subsampling = "4:4:4"
         elif COMPRESS_ENABLED:
@@ -1468,6 +1484,9 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
         f.write("")
 
     write_log("=" * 50)
+    init_session_gps()
+    init_session_exif()
+    init_session_jpeg()
     write_log("图像重构引擎启动", "info")
     write_log(f"📂 保存路径：{save_root}", "info")
     if SELECTED_CITY == "全国随机":
@@ -1604,3 +1623,68 @@ def set_geo(selected_country, selected_city, mode_text):
     SELECTED_COUNTRY = selected_country
     SELECTED_CITY = selected_city
     SELECTED_GPS_MODE, SELECTED_GPS_DATA = parse_geo(selected_country, selected_city, mode_text)
+
+
+def init_session_gps():
+    """初始化当前会话的共享 GPS 坐标。一次会话内所有图片使用同一城市、相近坐标。"""
+    global SESSION_GPS
+    if SELECTED_CITY == "全国随机":
+        country = SELECTED_COUNTRY
+        if country not in GEO_DATA:
+            country = "法国"
+        city_dict = GEO_DATA[country]
+        lats = [lat for lat, lon in city_dict.values()]
+        lons = [lon for lat, lon in city_dict.values()]
+        lat = random.uniform(min(lats), max(lats))
+        lon = random.uniform(min(lons), max(lons))
+        city = random.choice(list(city_dict.keys()))
+    elif SELECTED_GPS_MODE == "random":
+        city_name, base_lat, base_lon = SELECTED_GPS_DATA
+        lat = base_lat + random.uniform(-0.05, 0.05)
+        lon = base_lon + random.uniform(-0.05, 0.05)
+        city = city_name
+    elif SELECTED_GPS_MODE == "fixed":
+        city_name, base_lat, base_lon = SELECTED_GPS_DATA
+        lat = base_lat + random.uniform(-0.01, 0.01)
+        lon = base_lon + random.uniform(-0.01, 0.01)
+        city = city_name
+    else:
+        return
+    SESSION_GPS = (lat, lon, city)
+    write_log(f"📍 会话GPS已初始化：{SELECTED_COUNTRY} {city} | {lat:.6f}, {lon:.6f}", "info")
+
+
+def init_session_exif():
+    """初始化当前会话的共享 EXIF 参数。同批次图片使用同一设备、相近拍摄时间。"""
+    global SESSION_EXIF, SESSION_DT_BASE
+    if SELECTED_DEVICE != "随机" and SELECTED_DEVICE in DEVICE_INFO_MAP:
+        make, model, software = DEVICE_INFO_MAP[SELECTED_DEVICE]
+        dev_model = model
+    else:
+        models = list(DEVICE_INFO_MAP.keys())
+        dev_model = random.choice(models)
+        make, model, software = DEVICE_INFO_MAP[dev_model]
+    exposure = (random.randint(1, 200), 1000)
+    fnum = (random.randint(16, 28), 10)
+    iso = random.randint(50, 1600)
+    lens = f"f/{random.uniform(1.8, 5.6):.1f} {random.randint(12, 200)}mm"
+    SESSION_EXIF = (make, model, software, dev_model, exposure, fnum, iso, lens)
+    # 随机一个过去的时间作为拍摄起点（最近30天内）
+    from datetime import datetime, timedelta
+    SESSION_DT_BASE = datetime.now() - timedelta(days=random.randint(0, 30),
+                                                   hours=random.randint(0, 23),
+                                                   minutes=random.randint(0, 59))
+    write_log(f"📷 会话EXIF已初始化：{make} {model} ISO{iso} f/{fnum[0]/fnum[1]:.1f}", "info")
+
+
+def init_session_jpeg():
+    """初始化当前会话的共享 JPEG 参数。"""
+    global SESSION_JPEG
+    if LOSSLESS_ENABLED:
+        SESSION_JPEG = (100, "4:4:4")
+    elif COMPRESS_ENABLED:
+        SESSION_JPEG = (random.randint(*COMPRESS_QUALITY_RANGE), random.choice(SUBSAMPLING_OPTIONS))
+    elif DEEP_ANTI_DUPLICATE_ENABLED:
+        SESSION_JPEG = (random.randint(*DEEP_JPEG_QUALITY_RANGE), random.choice(SUBSAMPLING_OPTIONS))
+    else:
+        SESSION_JPEG = (random.randint(*JPEG_QUALITY_RANGE), random.choice(SUBSAMPLING_OPTIONS))

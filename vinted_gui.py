@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1156,6 +1156,10 @@ class VintedScraperGUI(QMainWindow):
                 "当前已开启原画输出（quality=100），\n"
                 "AI指纹重构的 JPEG 质量随机化将被跳过，\n"
                 "防重效果略微降低。")
+        if v and self.chk_deep_anti_duplicate.isChecked():
+            QMessageBox.warning(self, "画质提示",
+                "AI指纹重构与指纹深度重建同时开启，\n"
+                "画质下降会叠加，建议日常仅开启AI指纹重构。")
         self._update_dots()
         self._save_config()
 
@@ -1182,6 +1186,10 @@ class VintedScraperGUI(QMainWindow):
                 "当前已开启原画输出（quality=100），\n"
                 "指纹深度重建的 JPEG 质量随机化将被跳过，\n"
                 "防重效果略微降低。")
+        if v and self.chk_advanced_anti_detect.isChecked():
+            QMessageBox.warning(self, "画质提示",
+                "AI指纹重构与指纹深度重建同时开启，\n"
+                "画质下降会叠加，建议日常仅开启AI指纹重构。")
         self._update_dots()
         self._save_config()
 
@@ -1409,6 +1417,9 @@ class VintedScraperGUI(QMainWindow):
     def _run_local_worker(self, paths):
         import shutil as _shutil
         variants = backend.DEEP_MODE_VARIANTS if backend.DEEP_ANTI_DUPLICATE_ENABLED else 1
+        backend.init_session_gps()
+        backend.init_session_exif()
+        backend.init_session_jpeg()
         # 输出到保存路径，不存在则用第一张图目录兜底
         base_dir = self._save_path if self._save_path and os.path.isdir(self._save_path) else (os.path.dirname(paths[0]) if paths else ".")
         from datetime import datetime
@@ -1418,12 +1429,15 @@ class VintedScraperGUI(QMainWindow):
         self._last_output_dir = out_dir
         self._last_source_paths = list(paths)
 
+        orig_dir = os.path.join(out_dir, "_orig")
+        os.makedirs(orig_dir, exist_ok=True)
         expanded = []
         self._deep_copies = []
         for p in paths:
             base, ext = os.path.splitext(os.path.basename(p))
             cp = os.path.join(out_dir, f"{base}{ext}")
             _shutil.copy2(p, cp)
+            _shutil.copy2(p, os.path.join(orig_dir, f"{base}{ext}"))  # 原图备份
             expanded.append(cp)
             self._deep_copies.append(cp)
             for v in range(2, variants + 1):
@@ -1594,7 +1608,8 @@ li { margin:2px 0; list-style:none; }
                 # 变体文件去掉 _v2/_v3 后缀，匹配回原始文件名
                 orig_name = re.sub(r'_v\d+(?=\.jpg$)', '', orig_name)
                 # 在同目录、上级目录、保存目录、原始来源目录找原图
-                search_dirs = [os.path.dirname(p), os.path.dirname(os.path.dirname(p)), save_dir]
+                search_dirs = [os.path.dirname(p), os.path.join(os.path.dirname(p), "_orig"),
+                               os.path.dirname(os.path.dirname(p)), save_dir]
                 for sp in getattr(self, '_last_source_paths', []) or []:
                     sd = os.path.dirname(sp)
                     if sd not in search_dirs:

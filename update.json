@@ -1,1 +1,1 @@
-{"version":"3.0.9","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.0.9/ImageMAX_v3.0.9.zip","changelog":"修复应用内更新：/download返回EXE保持向下兼容，/dl返回ZIP供浏览器下载。"}
+{"version":"3.1.0","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.1.0/ImageMAX_v3.1.0.zip","changelog":"五项优化：EXIF/JPEG会话一致性+缩略图统一生成+本地原图备份+互斥提示。"}
