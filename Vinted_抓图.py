@@ -1863,6 +1863,309 @@ def scrape_poshmark_by_browser(url, save_folder, debug_mode, driver=None):
                 pass
 
 
+def scrape_grailed_by_browser(url, save_folder, debug_mode, driver=None):
+    """Grailed 商品图片采集"""
+    global STOP_TASK, FAIL_COUNT, FAILED_URLS
+    if _on_status:
+        _on_status("正在抓取 Grailed 商品图片")
+    if STOP_TASK:
+        return False
+
+    own_driver = False
+    try:
+        write_log(f"======================")
+        write_log(f"开始抓取 Grailed 商品：{url}")
+        if STOP_TASK:
+            return False
+
+        if driver is None:
+            driver = init_chrome(debug_mode)
+            own_driver = True
+
+        for page_retry in range(3):
+            driver.get(url)
+            sleep(3)
+            if "Grailed" in driver.title:
+                break
+            write_log(f"⚠️ Grailed 页面异常，重试（第{page_retry+1}/3次）", "warning")
+            sleep(2)
+
+        # 提取产品图片 — 只取商品主图区，排除推荐
+        import re as _re
+        dom_urls = driver.execute_script("""
+            var out = [];
+            // 限定商品主图区域
+            var gallery = document.querySelector('[class*="PhotoGallery_"], [class*="photoGallery"]');
+            if (!gallery) gallery = document.querySelector('[class*="LeftColumn_"] [class*="Photo_"]');
+            var imgs = gallery ? gallery.querySelectorAll('img') : document.querySelectorAll('img');
+            // 如果限定区图片太少，退回到全页
+            if (imgs.length < 2) imgs = document.querySelectorAll('img');
+            imgs.forEach(function(img) {
+                var s = img.src || '';
+                if (s.indexOf('media-assets.grailed.com') !== -1 && s.indexOf('/listing/') !== -1) {
+                    if (out.indexOf(s) === -1) out.push(s);
+                }
+            });
+            return out;
+        """)
+        img_urls = list(dict.fromkeys(dom_urls or []))
+
+        if not img_urls:
+            write_log("❌ 未提取到 Grailed 商品图片", "error")
+            FAILED_URLS.append(url)
+            if own_driver:
+                driver.quit()
+            return False
+
+        # 去重：URL末尾hash之前的路径
+        seen = set()
+        final_urls = []
+        for u in img_urls:
+            m = _re.search(r'/temp/([a-f0-9]{32})', u)
+            pid = m.group(1) if m else u
+            if pid not in seen:
+                seen.add(pid)
+                final_urls.append(u.split("?")[0] + "?format=original")
+        img_urls = final_urls
+        write_log(f"✅ 提取到 {len(img_urls)} 张 Grailed 商品图片", "success")
+
+        download_headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": url,
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        }
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        results = []
+        download_args = [(u, save_folder, download_headers, {}, i)
+                         for i, u in enumerate(img_urls)]
+        with ThreadPoolExecutor(max_workers=min(DOWNLOAD_WORKERS, len(img_urls))) as executor:
+            futures = {executor.submit(_download_single_image, arg): arg
+                       for arg in download_args}
+            for future in as_completed(futures):
+                results.append(future.result())
+
+        ok = sum(1 for r in results if r)
+        fail = len(results) - ok
+        FAIL_COUNT += fail
+        if fail > 0:
+            write_log(f"❌ {fail} 张图片下载失败", "error")
+        write_log(f"✅ Grailed 商品处理完成：成功 {ok}/{len(img_urls)} 张", "success")
+        return ok > 0
+
+    except Exception as e:
+        write_log(f"❌ Grailed 抓取异常：{e}", "error")
+        FAILED_URLS.append(url)
+        return False
+    finally:
+        if own_driver and driver:
+            try:
+                driver.quit()
+            except:
+                pass
+
+
+def scrape_mercari_by_browser(url, save_folder, debug_mode, driver=None):
+    """Mercari 商品图片采集 — 从 JSON-LD 提取"""
+    global STOP_TASK, FAIL_COUNT, FAILED_URLS
+    if _on_status:
+        _on_status("正在抓取 Mercari 商品图片")
+    if STOP_TASK:
+        return False
+
+    own_driver = False
+    try:
+        write_log(f"======================")
+        write_log(f"开始抓取 Mercari 商品：{url}")
+        if STOP_TASK:
+            return False
+
+        if driver is None:
+            driver = init_chrome(debug_mode)
+            own_driver = True
+
+        for page_retry in range(3):
+            driver.get(url)
+            sleep(3)
+            if "Mercari" in driver.title or "mercari" in driver.current_url:
+                break
+            sleep(2)
+
+        # 从 JSON-LD 提取图片（Mercari 在 Product schema 里直接放了图片列表）
+        import re as _re, json as _json
+        ld_pat = r'<script type="application/ld\+json"[^>]*>(.*?)</script>'
+        img_urls = []
+        for m in _re.finditer(ld_pat, driver.page_source, _re.DOTALL):
+            try:
+                d = _json.loads(m.group(1))
+                if d.get("@type") == "Product":
+                    imgs = d.get("image", [])
+                    if isinstance(imgs, list):
+                        img_urls = imgs
+                    elif isinstance(imgs, str):
+                        img_urls = [imgs]
+                    break
+            except: pass
+
+        if not img_urls:
+            write_log("❌ 未提取到 Mercari 商品图片", "error")
+            FAILED_URLS.append(url)
+            if own_driver:
+                driver.quit()
+            return False
+
+        # 去重 + 高清升级
+        seen = set()
+        final_urls = []
+        for u in img_urls:
+            m = _re.search(r'(m\d+)_(\d+)\.(jpg|jpeg|png|webp)', u)
+            if m:
+                key = "{}_{}".format(m.group(1), m.group(2))
+                if key not in seen:
+                    seen.add(key)
+                    hq = "https://u-mercari-images.mercdn.net/photos/{}_{}.{}?width=4096&quality=100".format(
+                        m.group(1), m.group(2), m.group(3))
+                    final_urls.append(hq)
+        img_urls = final_urls
+        write_log("✅ 提取到 {} 张 Mercari 商品图片".format(len(img_urls)), "success")
+
+        download_headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": url,
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        }
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        results = []
+        download_args = [(u, save_folder, download_headers, {}, i)
+                         for i, u in enumerate(img_urls)]
+        with ThreadPoolExecutor(max_workers=min(DOWNLOAD_WORKERS, len(img_urls))) as executor:
+            futures = {executor.submit(_download_single_image, arg): arg
+                       for arg in download_args}
+            for future in as_completed(futures):
+                results.append(future.result())
+
+        ok = sum(1 for r in results if r)
+        fail = len(results) - ok
+        FAIL_COUNT += fail
+        if fail > 0:
+            write_log("❌ {} 张图片下载失败".format(fail), "error")
+        write_log("✅ Mercari 商品处理完成：成功 {}/{} 张".format(ok, len(img_urls)), "success")
+        return ok > 0
+
+    except Exception as e:
+        write_log("❌ Mercari 抓取异常：{}".format(e), "error")
+        FAILED_URLS.append(url)
+        return False
+    finally:
+        if own_driver and driver:
+            try:
+                driver.quit()
+            except:
+                pass
+
+
+def scrape_wallapop_by_browser(url, save_folder, debug_mode, driver=None):
+    """Wallapop 商品图片采集"""
+    global STOP_TASK, FAIL_COUNT, FAILED_URLS
+    if _on_status:
+        _on_status("正在抓取 Wallapop 商品图片")
+    if STOP_TASK:
+        return False
+
+    own_driver = False
+    try:
+        write_log(f"======================")
+        write_log(f"开始抓取 Wallapop 商品：{url}")
+        if STOP_TASK:
+            return False
+
+        if driver is None:
+            driver = init_chrome(debug_mode)
+            own_driver = True
+
+        for page_retry in range(3):
+            driver.get(url)
+            sleep(3)
+            if "WALLAPOP" in driver.title.upper():
+                break
+            sleep(2)
+
+        # 提取 cdn.wallapop.com 产品图
+        import re as _re
+        dom_urls = driver.execute_script("""
+            var out = [];
+            var imgs = document.querySelectorAll('img');
+            imgs.forEach(function(img) {
+                var s = img.src || '';
+                if (s.indexOf('cdn.wallapop.com') !== -1 && s.indexOf('W640') !== -1) {
+                    if (out.indexOf(s) === -1) out.push(s);
+                }
+            });
+            return out;
+        """)
+        img_urls = list(dict.fromkeys(dom_urls or []))
+
+        if not img_urls:
+            write_log("❌ 未提取到 Wallapop 商品图片", "error")
+            FAILED_URLS.append(url)
+            if own_driver:
+                driver.quit()
+            return False
+
+        # 去重 + 尝试去参数取原图
+        cookies = driver.get_cookies()
+        seen = set()
+        final_urls = []
+        for u in img_urls:
+            m = _re.search(r'(i\d{10,12})', u)
+            pid = m.group(1) if m else u
+            if pid not in seen:
+                seen.add(pid)
+                # 去 ?pictureSize= 参数取原图
+                orig = u.split("?")[0]
+                final_urls.append(orig)
+        img_urls = final_urls
+        write_log("✅ 提取到 {} 张 Wallapop 商品图片".format(len(img_urls)), "success")
+
+        # 用浏览器 cookie session 下载
+        import requests as _rq
+        s = _rq.Session()
+        for c in cookies:
+            s.cookies.set(c['name'], c['value'], domain=c.get('domain', ''))
+        download_headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": url,
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        }
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        results = []
+        download_args = [(u, save_folder, download_headers, s, i)
+                         for i, u in enumerate(img_urls)]
+        with ThreadPoolExecutor(max_workers=min(DOWNLOAD_WORKERS, len(img_urls))) as executor:
+            futures = {executor.submit(_download_depop_image, arg): arg
+                       for arg in download_args}
+            for future in as_completed(futures):
+                results.append(future.result())
+
+        ok = sum(1 for r in results if r)
+        fail = len(results) - ok
+        FAIL_COUNT += fail
+        if fail > 0:
+            write_log("❌ {} 张图片下载失败".format(fail), "error")
+        write_log("✅ Wallapop 商品处理完成：成功 {}/{} 张".format(ok, len(img_urls)), "success")
+        return ok > 0
+
+    except Exception as e:
+        write_log("❌ Wallapop 抓取异常：{}".format(e), "error")
+        FAILED_URLS.append(url)
+        return False
+    finally:
+        if own_driver and driver:
+            try:
+                driver.quit()
+            except:
+                pass
+
+
 def start_crawl_task(urls_text, debug_mode, wait_time=0):
     global STOP_TASK, LOG_FILE, CUSTOM_SAVE_ROOT, SESSION_SAVE_ROOT, TOTAL_TASKS, CURRENT_TASK, SUCCESS_COUNT, FAIL_COUNT, FAILED_URLS
     import time as _time
@@ -1940,7 +2243,13 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
                 _on_progress(CURRENT_TASK, TOTAL_TASKS, SUCCESS_COUNT, FAIL_COUNT)
 
             # 按域名分流平台
-            if "poshmark.com" in url:
+            if "wallapop.com" in url:
+                result = scrape_wallapop_by_browser(url, save_root, debug_mode, driver=shared_driver)
+            elif "mercari.com" in url:
+                result = scrape_mercari_by_browser(url, save_root, debug_mode, driver=shared_driver)
+            elif "grailed.com" in url:
+                result = scrape_grailed_by_browser(url, save_root, debug_mode, driver=shared_driver)
+            elif "poshmark.com" in url:
                 result = scrape_poshmark_by_browser(url, save_root, debug_mode, driver=shared_driver)
             elif "vestiairecollective.com" in url:
                 result = scrape_vc_by_browser(url, save_root, debug_mode, driver=shared_driver)
