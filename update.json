@@ -1,1 +1,1 @@
-{"version":"3.0.6","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.0.6/ImageMAX.exe","changelog":"修复Windows大小写不敏感导致文件夹图片重复计数问题；日志改进显示实际处理次数。"}
+{"version":"3.0.7","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.0.7/ImageMAX_v3.0.7.zip","changelog":"下载改为ZIP包，避免浏览器安全提示；更新逻辑支持ZIP自动解压。"}

@@ -26,18 +26,18 @@ export default {
       return Response.json(d, { headers: { "Access-Control-Allow-Origin": "*" } });
     }
 
-    // /download — EXE
+    // /download — ZIP
     if (p === "/download") {
       const v = await getVersion();
       if (!v) return new Response("Version unavailable", { status: 502 });
-      return proxy(`${DL}/${v}/ImageMAX.exe`, "ImageMAX.exe");
+      return proxy(`${DL}/${v}/ImageMAX_${v}.zip`, "ImageMAX.zip");
     }
 
-    // /dl — ZIP
+    // /dl — ZIP（兼容旧链接）
     if (p === "/dl") {
       const v = await getVersion();
       if (!v) return new Response("Version unavailable", { status: 502 });
-      return proxy(`${DL}/${v}/ImageMAX_${v}.zip`, `ImageMAX_${v}.zip`);
+      return proxy(`${DL}/${v}/ImageMAX_${v}.zip`, "ImageMAX.zip");
     }
 
     // /ai-credits — 查看/管理余额
