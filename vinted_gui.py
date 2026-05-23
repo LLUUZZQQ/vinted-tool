@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1244,7 +1244,7 @@ class VintedScraperGUI(QMainWindow):
         if total > 0:
             self.progress_bar.setMaximum(total)
             self.progress_bar.setValue(current)
-        self.stat_label.setText(f'<span style="color:#10b981;">成功：{success}</span> | <span style="color:#ef4444;">失败：{fail}</span>')
+        self.stat_label.setText(_tr(f'<span style="color:#10b981;">成功：{success}</span> | <span style="color:#ef4444;">失败：{fail}</span>'))
 
     def _on_task_finished(self, stopped):
         self._set_ui_running(False)
@@ -2064,6 +2064,9 @@ li { margin:2px 0; list-style:none; }
         dlg.exec()
 
     def _check_for_updates(self):
+        if getattr(self, '_update_thread', None) and self._update_thread.isRunning():
+            self._add_log("更新已在进行中，请稍候...", "warning")
+            return
         self._add_log("正在检查更新...", "info")
         has_update, version, changelog, url = update_checker.check_for_update()
         if not has_update:

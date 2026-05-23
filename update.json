@@ -1,1 +1,1 @@
-{"version":"3.2.2","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.2.2/ImageMAX_v3.2.2.zip","changelog":"更新下载改为后台线程+进度条，彻底解决界面卡死。"}
+{"version":"3.2.3","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.2.3/ImageMAX_v3.2.3.zip","changelog":"修复统计标签更新时未走翻译，发布版显示符号异常。"}

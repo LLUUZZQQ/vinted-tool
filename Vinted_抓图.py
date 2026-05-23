@@ -1573,9 +1573,8 @@ def scrape_depop_by_browser(url, save_folder, debug_mode, driver=None):
                 break
             last_height = new_height
 
-        # 获取 Cookie
+        # 获取 Cookie（用于后续 download session）
         cookies = driver.get_cookies()
-        page_cookie = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
 
         # 提取商品图片 — 限第一个轮播容器（商品主图），排除推荐
         import re as _re
