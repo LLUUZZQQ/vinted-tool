@@ -215,10 +215,12 @@ def decimal_to_dms(decimal):
     return (degrees, 1), (minutes, 1), (int(seconds * 100), 100)
 
 
+ENABLE_FILE_LOG = True  # GUI 可设为 False 关闭文件日志
+
 def write_log(content, level="info"):
     global LOG_FILE
     with _log_lock:
-        if LOG_FILE:
+        if LOG_FILE and ENABLE_FILE_LOG:
             import time as _time
             with open(LOG_FILE, "a", encoding="utf-8") as f:
                 f.write(f"[{_time.strftime('%H:%M:%S')}] {content}\n")
