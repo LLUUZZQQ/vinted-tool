@@ -657,7 +657,7 @@ def _verify_license_quick():
 
 def process_image(image_path, skip_gps=False):
     global SELECTED_COUNTRY, SELECTED_CITY, SELECTED_GPS_MODE, SELECTED_GPS_DATA, COMPRESS_ENABLED, WATERMARK_ENABLED
-    global DEEP_ANTI_DUPLICATE_ENABLED, DEEP_MODE_VARIANTS, LOSSLESS_ENABLED
+    global DEEP_ANTI_DUPLICATE_ENABLED, DEEP_MODE_VARIANTS, LOSSLESS_ENABLED, SESSION_DT_BASE
     if _on_status:
         _on_status("正在处理图片")
     img = None
@@ -1473,6 +1473,192 @@ def _cleanup_old_logs(save_root, days=3):
         pass
 
 
+def _download_depop_image(args):
+    """用共享 requests session 下载单张 Depop 图片"""
+    img_url, save_folder, download_headers, session, img_idx = args
+    if not _verify_license_quick():
+        return False
+    try:
+        for retry in range(3):
+            if STOP_TASK:
+                return False
+            try:
+                if retry > 0:
+                    sleep(retry * 2 + random.uniform(0, 1))
+                res = session.get(img_url, headers=download_headers, timeout=(10, 60))
+                if res.status_code == 200 and len(res.content) > 1024:
+                    ext = "webp" if ".webp" in img_url else "png" if ".png" in img_url else "jpg"
+                    temp_path = os.path.join(save_folder, f"temp_{img_idx + 1}.{ext}")
+                    with open(temp_path, "wb") as f:
+                        f.write(res.content)
+                    write_log(f"第{img_idx + 1}张下载成功 | {round(len(res.content)/1024, 2)}KB", "success")
+                    # 深度模式多版本
+                    variants = DEEP_MODE_VARIANTS if DEEP_ANTI_DUPLICATE_ENABLED else 1
+                    if variants > 1:
+                        result = True
+                        for v in range(2, variants + 1):
+                            v_path = os.path.join(save_folder, f"temp_{img_idx + 1}_v{v}.{ext}")
+                            shutil.copy2(temp_path, v_path)
+                            if not process_image(v_path):
+                                result = False
+                        if not process_image(temp_path):
+                            result = False
+                    else:
+                        result = process_image(temp_path)
+                    return result
+                else:
+                    write_log(f"第{img_idx + 1}张第{retry + 1}次重试 | 状态码：{res.status_code}", "warning")
+            except Exception as e:
+                write_log(f"第{img_idx + 1}张第{retry + 1}次下载失败 | {e}", "error")
+                sleep(1)
+        write_log(f"❌ 第{img_idx + 1}张最终下载失败", "error")
+        return False
+    except:
+        return False
+
+
+def scrape_depop_by_browser(url, save_folder, debug_mode, driver=None):
+    """Depop 商品图片采集"""
+    global STOP_TASK, FAIL_COUNT, FAILED_URLS
+    if _on_status:
+        _on_status("正在抓取 Depop 商品图片")
+    if STOP_TASK:
+        return False
+
+    own_driver = False
+    try:
+        write_log(f"======================")
+        write_log(f"开始抓取 Depop 商品：{url}")
+        if STOP_TASK:
+            return False
+
+        if driver is None:
+            driver = init_chrome(debug_mode)
+            own_driver = True
+        wait = WebDriverWait(driver, 15)
+
+        # 页面加载 + 重试
+        for page_retry in range(3):
+            driver.get(url)
+            sleep(3)
+            try:
+                body = driver.execute_script(
+                    "return (document.body?.innerText || '').substring(0, 300)"
+                ).lower()
+            except:
+                body = ""
+            # Depop 错误页检测
+            if "something went wrong" in body or "page not found" in body:
+                write_log(f"⚠️ Depop 页面异常，重试（第{page_retry+1}/3次）", "warning")
+                sleep(2)
+                continue
+            # 等商品图片加载
+            try:
+                WebDriverWait(driver, 8).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR,
+                        "img[src*='media-photos.depop.com']"))
+                )
+                break
+            except:
+                write_log(f"⚠️ 第{page_retry+1}次未找到图片容器", "warning")
+                sleep(1)
+
+        # 滚动加载所有图片
+        last_height = driver.execute_script("return document.body.scrollHeight")
+        for _ in range(10):
+            driver.execute_script("window.scrollBy(0, 600)")
+            sleep(0.8)
+            new_height = driver.execute_script("return document.body.scrollHeight")
+            if new_height == last_height:
+                break
+            last_height = new_height
+
+        # 获取 Cookie
+        cookies = driver.get_cookies()
+        page_cookie = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
+
+        # 提取商品图片 — 限第一个轮播容器（商品主图），排除推荐
+        import re as _re
+        dom_urls = driver.execute_script("""
+            var out = [];
+            // 只取第一个 carousel 容器内的图片
+            var carousel = document.querySelector('[class*="carouselContainer"], [class*="carousel__"]');
+            if (carousel) {
+                var imgs = carousel.querySelectorAll('img');
+            } else {
+                var imgs = document.querySelectorAll('img');
+            }
+            imgs.forEach(function(img) {
+                var s = img.src || '';
+                if (s.indexOf('media-photos.depop.com') !== -1 && out.indexOf(s) === -1) out.push(s);
+            });
+            return out;
+        """)
+        img_urls = list(dict.fromkeys(dom_urls or []))
+
+        if not img_urls:
+            write_log("❌ 未提取到 Depop 商品图片", "error")
+            FAILED_URLS.append(url)
+            FAIL_REASONS[url] = "未提取到商品图片"
+            if own_driver:
+                driver.quit()
+            return False
+
+        # 图片 ID 去重 + 升级 P10
+        seen = set()
+        final_urls = []
+        for u in img_urls:
+            m = _re.search(r'/(\d{9,11})_', u)
+            pid = m.group(1) if m else u
+            if pid not in seen:
+                seen.add(pid)
+                final_urls.append(_re.sub(r'/P\d+\.', '/P10.', u) if '/P' in u.split('/')[-1] else u)
+        img_urls = final_urls
+        write_log(f"✅ 提取到 {len(img_urls)} 张 Depop 商品图片", "success")
+
+        # 用 requests + 浏览器 cookie jar 下载（比裸 Cookie 头可靠）
+        import requests as _requests
+        import json as _json
+        s = _requests.Session()
+        for c in cookies:
+            s.cookies.set(c['name'], c['value'], domain=c.get('domain', ''))
+        download_headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": url,
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            "Accept-Language": "en-GB,en;q=0.9",
+        }
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        results = []
+        download_args = [(u, save_folder, download_headers, s, i)
+                         for i, u in enumerate(img_urls)]
+        with ThreadPoolExecutor(max_workers=min(DOWNLOAD_WORKERS, len(img_urls))) as executor:
+            futures = {executor.submit(_download_depop_image, arg): arg
+                       for arg in download_args}
+            for future in as_completed(futures):
+                results.append(future.result())
+
+        ok = sum(1 for r in results if r)
+        fail = len(results) - ok
+        FAIL_COUNT += fail
+        if fail > 0:
+            write_log(f"❌ {fail} 张图片下载失败", "error")
+        write_log(f"✅ Depop 商品处理完成：成功 {ok}/{len(img_urls)} 张", "success")
+        return ok > 0
+
+    except Exception as e:
+        write_log(f"❌ Depop 抓取异常：{e}", "error")
+        FAILED_URLS.append(url)
+        FAIL_REASONS[url] = str(e)[:100]
+        return False
+    finally:
+        if own_driver and driver:
+            try:
+                driver.quit()
+            except:
+                pass
+
+
 def start_crawl_task(urls_text, debug_mode, wait_time=0):
     global STOP_TASK, LOG_FILE, CUSTOM_SAVE_ROOT, SESSION_SAVE_ROOT, TOTAL_TASKS, CURRENT_TASK, SUCCESS_COUNT, FAIL_COUNT, FAILED_URLS
     import time as _time
@@ -1549,9 +1735,13 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
             if _on_progress:
                 _on_progress(CURRENT_TASK, TOTAL_TASKS, SUCCESS_COUNT, FAIL_COUNT)
 
-            # 兼容旧接口：传递 wait_time 参数到内部
-            if scrape_vinted_by_browser(url, save_root, debug_mode,
-                                        driver=shared_driver, wait_time=wait_time):
+            # 按域名分流平台
+            if "depop.com" in url:
+                result = scrape_depop_by_browser(url, save_root, debug_mode, driver=shared_driver)
+            else:
+                result = scrape_vinted_by_browser(url, save_root, debug_mode,
+                                                   driver=shared_driver, wait_time=wait_time)
+            if result:
                 SUCCESS_COUNT += 1
             else:
                 FAIL_COUNT += 1
