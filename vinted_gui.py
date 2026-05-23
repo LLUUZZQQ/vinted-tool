@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1470,8 +1470,8 @@ class VintedScraperGUI(QMainWindow):
     def _show_help(self):
         dlg = QDialog(self)
         dlg.setWindowTitle("使用说明")
-        dlg.setMinimumSize(520, 580)
-        dlg.resize(560, 660)
+        dlg.setMinimumSize(520, 640)
+        dlg.resize(560, 740)
         dlg.setStyleSheet("""
             QDialog { background-color: #1a1a1a; }
             QLabel { color: #ccc; background: transparent; }
@@ -1502,11 +1502,21 @@ li { margin:2px 0; list-style:none; }
 <li><span class=num>6</span> 完成后点击 <b>浏览文件</b></li>
 
 <h2>处理配置</h2>
+<li style='color:#10b981;margin-bottom:6px;'><b>核心处理（无需手动开启）</b></li>
+<li>· 数字指纹重建</li>
+<li>· 图像结构重组</li>
+<li>· 拍摄信息注入</li>
+<li style='color:#888;margin-bottom:8px;'>以下为可选增强功能：</li>
 <li><b>智能画质</b> &nbsp;智能优化图像体积，兼顾画质与上传速度</li>
 <li><b>原画输出</b> &nbsp;无损级保留全部图像细节，与智能画质互斥</li>
 <li><b>数字水印</b> &nbsp;嵌入不可见数字标识，可用于版权保护</li>
 <li><b>AI指纹重构</b> &nbsp;多维重建图像特征空间，推荐始终开启</li>
-<li><b>指纹深度重建</b> &nbsp;深层结构重组，适用于补图或旧图翻新场景</li>
+<li><b>指纹深度重建</b></li>
+<li style='color:#888;margin-left:16px;'>针对已上架过的图片重新处理场景，进一步增强图像指纹重建深度</li>
+<li style='color:#888;margin-left:16px;'>启用后输出图片将具备更强的平台识别规避能力</li>
+<li style='color:#888;margin-left:16px;'>建议场景：同一商品补图、旧图翻新再上架</li>
+<li style='color:#888;margin-left:16px;'>输出版本数设为 2-3，每张图生成多个指纹不同的副本</li>
+<li style='color:#888;margin-left:16px;'>输出文件名末尾标记差异数值，数值越高表示与原图差异越大</li>
 <li><b>机型自定义</b> &nbsp;模拟指定设备成像特征，保持随机即可</li>
 <li style='color:#666;font-size:12px;margin-top:6px;'>提示：AI指纹重构和指纹深度重建涉及图像重编码，画质会有轻微下降，日常使用建议仅开启AI指纹重构即可</li>
 
