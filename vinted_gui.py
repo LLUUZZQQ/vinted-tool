@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1281,19 +1281,21 @@ class VintedScraperGUI(QMainWindow):
         # 处理清单
         features = []
         if backend.ADVANCED_ANTI_DETECT_ENABLED:
-            features.append("  ✓  AI指纹重构引擎")
-            features.append("  ✓  色温映射 & 曝光补偿")
-            features.append("  ✓  JPEG 指纹重建")
+            features.append("AI指纹重构")
+        if backend.DEEP_ANTI_DUPLICATE_ENABLED:
+            features.append(f"指纹深度重建")
+        if backend.COMPRESS_ENABLED:
+            features.append("智能画质")
+        if backend.LOSSLESS_ENABLED:
+            features.append("原画输出")
         if backend.WATERMARK_ENABLED:
-            features.append("  ✓  数字指纹水印")
+            features.append("数字水印")
         if backend.DEVICE_CROP_ENABLED:
-            features.append("  ✓  机型自定义")
-        features.append("  ✓  时空元数据注入")
-        feature_text = "\n".join(features) if features else ""
+            features.append("机型匹配")
+        feat_str = "、".join(features) if features else "基础处理"
 
-        info = f"处理商品：{total}    采集图片：{_session_images}    成功：{success}    失败：{fail}"
-        if feature_text:
-            info += f"\n\n已应用处理：\n{feature_text}"
+        info = f"处理 {total} 个商品 · 采集 {_session_images} 张图片 · 成功 {success} · 失败 {fail}"
+        info += f"\n\n已应用：{feat_str}"
         if fail > 0 and backend.FAIL_REASONS:
             reasons = []
             for url in backend.FAILED_URLS[-3:]:
@@ -1487,9 +1489,26 @@ class VintedScraperGUI(QMainWindow):
         self.status_label.setText(f"本地处理完成，成功 {ok} 张")
         self._add_log(f"✅ 本地防重完成，成功 {ok} 张", "success")
         if ok > 0:
+            # 功能摘要
+            features = []
+            if backend.ADVANCED_ANTI_DETECT_ENABLED:
+                features.append("AI指纹重构")
+            if backend.DEEP_ANTI_DUPLICATE_ENABLED:
+                v = backend.DEEP_MODE_VARIANTS
+                features.append(f"指纹深度重建(×{v})")
+            if backend.COMPRESS_ENABLED:
+                features.append("智能画质")
+            if backend.LOSSLESS_ENABLED:
+                features.append("原画输出")
+            if backend.WATERMARK_ENABLED:
+                features.append("数字水印")
+            if backend.DEVICE_CROP_ENABLED:
+                features.append("机型画幅匹配")
+            feat_str = "、".join(features) if features else "基础处理"
             msg = QMessageBox(self)
             msg.setWindowTitle("处理完成")
-            msg.setText(f"本地处理完成，成功 {ok} 张")
+            msg.setText(f"成功处理 {ok} 张图片")
+            msg.setInformativeText(f"已应用：{feat_str}")
             msg.setStandardButtons(QMessageBox.Ok)
             btn_open = msg.addButton(_tr("打开目录"), QMessageBox.ActionRole)
             btn_preview = msg.addButton(_tr("预览对比"), QMessageBox.ActionRole)

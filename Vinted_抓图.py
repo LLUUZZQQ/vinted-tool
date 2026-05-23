@@ -2211,9 +2211,10 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
     save_root = os.path.join(base_root, f"Crawl_{ts}")
     os.makedirs(save_root, exist_ok=True)
     SESSION_SAVE_ROOT = save_root
-    LOG_FILE = os.path.join(save_root, "Process_Log.txt")
-    with open(LOG_FILE, "w", encoding="utf-8") as f:
-        f.write("")
+    if ENABLE_FILE_LOG:
+        LOG_FILE = os.path.join(save_root, "Process_Log.txt")
+        with open(LOG_FILE, "w", encoding="utf-8") as f:
+            f.write("")
 
     write_log("=" * 50)
     init_session_gps()
