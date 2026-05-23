@@ -15,7 +15,7 @@ import subprocess
 UPDATE_URL = "https://vt-proxy.vtmax.workers.dev/update.json"
 
 # 当前版本
-CURRENT_VERSION = "3.0.8"
+CURRENT_VERSION = "3.0.9"
 
 
 def _fetch_json(url, timeout=10):
@@ -48,16 +48,14 @@ def check_for_update():
 
 def download_update(download_url, progress_callback=None):
     """
-    下载新版本 ZIP 包，解压 exe 到程序同目录。
-    返回解压后的 exe 路径，失败返回 None。
+    下载新版本 exe 到程序同目录。
+    返回临时文件路径，失败返回 None。
     """
-    import zipfile
     try:
         exe_dir = os.path.dirname(sys.executable)
-        zip_path = os.path.join(exe_dir, "_update_new.zip")
         tmp_path = os.path.join(exe_dir, "_update_new.exe")
         # 清理上次残留
-        for f in [zip_path, tmp_path, os.path.join(exe_dir, "_update.old")]:
+        for f in [tmp_path, os.path.join(exe_dir, "_update.old")]:
             if os.path.exists(f):
                 try:
                     os.remove(f)
@@ -68,7 +66,7 @@ def download_update(download_url, progress_callback=None):
             total = resp.headers.get("Content-Length")
             total = int(total) if total else 0
             downloaded = 0
-            with open(zip_path, "wb") as f:
+            with open(tmp_path, "wb") as f:
                 while True:
                     chunk = resp.read(65536)
                     if not chunk:
@@ -77,26 +75,12 @@ def download_update(download_url, progress_callback=None):
                     downloaded += len(chunk)
                     if progress_callback and total > 0:
                         progress_callback(downloaded, total)
-        # 校验完整性
+        # 校验文件完整性
         if total > 0:
-            actual = os.path.getsize(zip_path)
+            actual = os.path.getsize(tmp_path)
             if actual < total * 0.95:
-                os.remove(zip_path)
+                os.remove(tmp_path)
                 return None
-        # 解压 ZIP
-        with zipfile.ZipFile(zip_path, "r") as zf:
-            names = zf.namelist()
-            exe_name = next((n for n in names if n.lower().endswith(".exe")), names[0] if names else "")
-            if not exe_name:
-                os.remove(zip_path)
-                return None
-            with zf.open(exe_name) as src, open(tmp_path, "wb") as dst:
-                while True:
-                    chunk = src.read(65536)
-                    if not chunk:
-                        break
-                    dst.write(chunk)
-        os.remove(zip_path)
         return tmp_path
     except Exception as e:
         return None

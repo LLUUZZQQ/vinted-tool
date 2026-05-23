@@ -26,14 +26,14 @@ export default {
       return Response.json(d, { headers: { "Access-Control-Allow-Origin": "*" } });
     }
 
-    // /download — ZIP
+    // /download — EXE（应用内更新用，兼容所有版本）
     if (p === "/download") {
       const v = await getVersion();
       if (!v) return new Response("Version unavailable", { status: 502 });
-      return proxy(`${DL}/${v}/ImageMAX_${v}.zip`, "ImageMAX.zip");
+      return proxy(`${DL}/${v}/ImageMAX.exe`, "ImageMAX.exe");
     }
 
-    // /dl — ZIP（兼容旧链接）
+    // /dl — ZIP（浏览器下载用，避免安全提示）
     if (p === "/dl") {
       const v = await getVersion();
       if (!v) return new Response("Version unavailable", { status: 502 });

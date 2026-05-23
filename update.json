@@ -1,1 +1,1 @@
-{"version":"3.0.8","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.0.8/ImageMAX_v3.0.8.zip","changelog":"使用说明恢复核心处理介绍和指纹深度重建详细说明。"}
+{"version":"3.0.9","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.0.9/ImageMAX_v3.0.9.zip","changelog":"修复应用内更新：/download返回EXE保持向下兼容，/dl返回ZIP供浏览器下载。"}
