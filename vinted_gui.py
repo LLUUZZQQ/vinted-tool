@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1400,6 +1400,7 @@ class VintedScraperGUI(QMainWindow):
         for ext in ('.jpg', '.jpeg', '.png', '.webp', '.bmp'):
             paths.extend(glob.glob(os.path.join(folder, '**', '*' + ext), recursive=True))
             paths.extend(glob.glob(os.path.join(folder, '**', '*' + ext.upper()), recursive=True))
+        paths = list(dict.fromkeys(paths))  # Windows大小写不敏感，去重
         if paths:
             self._run_local_worker(paths)
         else:
@@ -1431,9 +1432,9 @@ class VintedScraperGUI(QMainWindow):
                 expanded.append(cp_v)
                 self._deep_copies.append(cp_v)
         if variants > 1:
-            self._add_log(f"🖼 开始本地处理，{len(paths)} 张图片 → 深度模式各输出 {variants} 个版本，共 {len(expanded)} 次 → {out_dir}", "info")
+            self._add_log(f"🖼 本地处理：{len(paths)} 张 → ×{variants} 版本 = 共 {len(expanded)} 次 → {out_dir}", "info")
         else:
-            self._add_log(f"🖼 开始本地防重处理，共 {len(paths)} 张图片 → {out_dir}", "info")
+            self._add_log(f"🖼 本地处理：{len(paths)} 张 → 共 {len(expanded)} 次 → {out_dir}", "info")
         self._local_worker = LocalProcessWorker(expanded)
         self._local_worker.log_signal.connect(self._add_log)
         self._local_worker.progress_signal.connect(
@@ -2093,6 +2094,7 @@ li { margin:2px 0; list-style:none; }
                     paths.extend(glob.glob(os.path.join(p, '**', '*'+ext.upper()), recursive=True))
             elif p.lower().endswith(('.jpg', '.jpeg', '.png', '.webp', '.bmp')):
                 paths.append(p)
+        paths = list(dict.fromkeys(paths))  # Windows大小写不敏感，去重
         if paths:
             event.acceptProposedAction()
             self._run_local_worker(paths)

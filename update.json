@@ -1,1 +1,1 @@
-{"version":"3.0.5","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.0.5/ImageMAX.exe","changelog":"使用说明新增预览对比操作教程；修复在线采集datetime导入缺失。"}
+{"version":"3.0.6","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.0.6/ImageMAX.exe","changelog":"修复Windows大小写不敏感导致文件夹图片重复计数问题；日志改进显示实际处理次数。"}
