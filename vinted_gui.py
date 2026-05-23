@@ -603,12 +603,12 @@ class VintedScraperGUI(QMainWindow):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         if RELEASE_MODE:
-            self.setMinimumSize(460, 570)
-            self.setMaximumHeight(570)
-            self.resize(520, 570)
+            self.setMinimumSize(460, 600)
+            self.setMaximumHeight(600)
+            self.resize(520, 600)
         else:
-            self.setMinimumSize(460, 650)
-            self.resize(520, 700)
+            self.setMinimumSize(460, 680)
+            self.resize(520, 730)
 
         screen = QApplication.primaryScreen().geometry()
         self.move((screen.width() - 500) // 2, (screen.height() - self.height()) // 2)
