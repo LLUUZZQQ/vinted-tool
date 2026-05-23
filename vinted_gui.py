@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -604,12 +604,12 @@ class VintedScraperGUI(QMainWindow):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         if RELEASE_MODE:
-            self.setMinimumSize(460, 620)
+            self.setMinimumSize(500, 620)
             self.setMaximumHeight(620)
-            self.resize(520, 620)
+            self.resize(560, 620)
         else:
-            self.setMinimumSize(460, 700)
-            self.resize(520, 750)
+            self.setMinimumSize(500, 700)
+            self.resize(580, 750)
 
         screen = QApplication.primaryScreen().geometry()
         self.move((screen.width() - 500) // 2, (screen.height() - self.height()) // 2)
