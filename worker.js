@@ -22,7 +22,7 @@ export default {
       const r = await fetch(`${RAW}/update.json`);
       if (!r.ok) return new Response("Unavailable", { status: 502 });
       const d = await r.json();
-      d.download_url = `https://${url.hostname}/download`;
+      d.download_url = d.download_url || `https://${url.hostname}/download`;
       return Response.json(d, { headers: { "Access-Control-Allow-Origin": "*" } });
     }
 
