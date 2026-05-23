@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -2078,28 +2078,45 @@ li { margin:2px 0; list-style:none; }
         if reply != QMessageBox.Yes:
             return
         self._add_log(f"正在下载 v{version}...", "info")
-        wait_dlg = QMessageBox(self)
+        # 后台线程下载，避免阻塞 UI
+        class _UpdateThread(QThread):
+            progress = Signal(int, int)
+            finished = Signal(object)  # str = exe路径, None = 失败
+            def run(self):
+                exe = update_checker.download_update(url,
+                    lambda d, t: self.progress.emit(d, t))
+                self.finished.emit(exe)
+
+        wait_dlg = QDialog(self)
         wait_dlg.setWindowTitle("版本更新")
-        wait_dlg.setText("正在下载更新，请稍候...")
-        wait_dlg.setInformativeText("更新过程中请勿关闭程序或断开网络，\n下载完成后将自动重启软件。")
-        wait_dlg.setStandardButtons(QMessageBox.NoButton)
-        wait_dlg.setWindowModality(Qt.WindowModal)
+        wait_dlg.setFixedSize(380, 120)
+        wait_dlg.setStyleSheet("QDialog{background:#1a1a1a;} QLabel{color:#ccc;background:transparent;}")
+        wl = QVBoxLayout(wait_dlg)
+        wl.setContentsMargins(20, 16, 20, 16)
+        wl.setSpacing(8)
+        wl.addWidget(QLabel("正在下载更新，请稍候..."))
+        pbar = QProgressBar()
+        pbar.setStyleSheet("QProgressBar{background:#333;border:none;border-radius:3px;height:6px;} QProgressBar::chunk{background:#10b981;border-radius:3px;}")
+        wl.addWidget(pbar)
+        wait_dlg.setWindowModality(Qt.ApplicationModal)
         wait_dlg.show()
-        QApplication.processEvents()
-        # 延迟 200ms 启动下载，确保对话框完全渲染
-        def _do_download():
-            def _progress(d, t):
-                wait_dlg.setInformativeText(f"正在下载 {d//1024//1024}/{t//1024//1024}MB\n\n更新过程中请勿关闭程序或断开网络，\n下载完成后将自动重启软件。")
-                QApplication.processEvents()
-            exe = update_checker.download_update(url, _progress)
+
+        self._update_thread = _UpdateThread()
+        def _on_prog(d, t):
+            pbar.setMaximum(t)
+            pbar.setValue(d)
+        def _on_fin(exe):
             wait_dlg.close()
+            self._update_thread = None
             if not exe:
                 self._add_log("更新下载失败", "error")
                 QMessageBox.critical(self, "更新失败", "下载失败，请稍后重试。")
                 return
             self._add_log("正在应用更新...", "info")
             update_checker.apply_update(exe)
-        QTimer.singleShot(200, _do_download)
+        self._update_thread.progress.connect(_on_prog)
+        self._update_thread.finished.connect(_on_fin)
+        self._update_thread.start()
 
     # ---- 窗口级拖拽（图片文件/文件夹） ----
     def dragEnterEvent(self, event):

@@ -1,1 +1,1 @@
-{"version":"3.2.1","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.2.1/ImageMAX_v3.2.1.zip","changelog":"修复更新下载时界面卡死问题，进度刷新恢复正常。"}
+{"version":"3.2.2","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.2.2/ImageMAX_v3.2.2.zip","changelog":"更新下载改为后台线程+进度条，彻底解决界面卡死。"}
