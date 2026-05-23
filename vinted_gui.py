@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -2088,8 +2088,10 @@ li { margin:2px 0; list-style:none; }
         QApplication.processEvents()
         # 延迟 200ms 启动下载，确保对话框完全渲染
         def _do_download():
-            exe = update_checker.download_update(url,
-                lambda d, t: wait_dlg.setInformativeText(f"正在下载 {d//1024//1024}/{t//1024//1024}MB\n\n更新过程中请勿关闭程序或断开网络，\n下载完成后将自动重启软件。"))
+            def _progress(d, t):
+                wait_dlg.setInformativeText(f"正在下载 {d//1024//1024}/{t//1024//1024}MB\n\n更新过程中请勿关闭程序或断开网络，\n下载完成后将自动重启软件。")
+                QApplication.processEvents()
+            exe = update_checker.download_update(url, _progress)
             wait_dlg.close()
             if not exe:
                 self._add_log("更新下载失败", "error")
