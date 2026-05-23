@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -906,6 +906,23 @@ class VintedScraperGUI(QMainWindow):
         bar.addWidget(self.stat_label)
         lo.addLayout(bar)
 
+        # 平台标签行
+        plat_bar = QHBoxLayout()
+        plat_bar.setSpacing(6)
+        plat_bar.addWidget(QLabel("支持平台  "))
+        platforms = [
+            ("Vinted", "#06D6A0"), ("Depop", "#FF4B4B"), ("VC", "#E31E52"),
+            ("Poshmark", "#C71585"), ("Grailed", "#000"), ("Mercari", "#E5004B"),
+            ("Wallapop", "#13C1AC"),
+        ]
+        for name, color in platforms:
+            tag = QLabel(name)
+            tag.setStyleSheet("background:{}; color:#fff; font-size:9px; font-weight:600; "
+                              "padding:1px 6px; border-radius:3px;".format(color))
+            plat_bar.addWidget(tag)
+        plat_bar.addStretch()
+        lo.addLayout(plat_bar)
+
         # 进度条
         self.progress_bar = QProgressBar()
         self.progress_bar.setMaximum(100)
@@ -1507,6 +1524,10 @@ b { color:#e0e0e0; }
 .num { display:inline-block; background:#333; color:#ccc; width:20px; height:20px; border-radius:10px; text-align:center; line-height:20px; font-size:11px; margin-right:6px; }
 li { margin:2px 0; list-style:none; }
 </style>
+<h2>支持平台</h2>
+<li style='color:#10b981;'><b>Vinted</b> · 全欧  <b>Depop</b> · 英美  <b>VC</b> · 法德美  <b>Poshmark</b> · 美</li>
+<li style='color:#10b981;'><b>Grailed</b> · 美  <b>Mercari</b> · 美日  <b>Wallapop</b> · 西班牙</li>
+
 <h2>使用步骤</h2>
 <li><span class=num>1</span> 粘贴商品链接，一行一个</li>
 <li><span class=num>2</span> 勾选需要的处理配置（推荐全开）</li>
