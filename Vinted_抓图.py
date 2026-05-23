@@ -1763,6 +1763,106 @@ def scrape_vc_by_browser(url, save_folder, debug_mode, driver=None):
                 pass
 
 
+def scrape_poshmark_by_browser(url, save_folder, debug_mode, driver=None):
+    """Poshmark 商品图片采集"""
+    global STOP_TASK, FAIL_COUNT, FAILED_URLS
+    if _on_status:
+        _on_status("正在抓取 Poshmark 商品图片")
+    if STOP_TASK:
+        return False
+
+    own_driver = False
+    try:
+        write_log(f"======================")
+        write_log(f"开始抓取 Poshmark 商品：{url}")
+        if STOP_TASK:
+            return False
+
+        if driver is None:
+            driver = init_chrome(debug_mode)
+            own_driver = True
+
+        for page_retry in range(3):
+            driver.get(url)
+            sleep(3)
+            if "Poshmark" in driver.title:
+                break
+            write_log(f"⚠️ Poshmark 页面异常，重试（第{page_retry+1}/3次）", "warning")
+            sleep(2)
+
+        # 提取产品图片 — cloudfront.net + /posts/
+        import re as _re
+        dom_urls = driver.execute_script("""
+            var out = [];
+            var imgs = document.querySelectorAll('img');
+            imgs.forEach(function(img) {
+                var s = img.src || '';
+                if (s.indexOf('cloudfront.net') !== -1 && s.indexOf('/posts/') !== -1) {
+                    if (out.indexOf(s) === -1) out.push(s);
+                }
+            });
+            return out;
+        """)
+        img_urls = list(dict.fromkeys(dom_urls or []))
+
+        if not img_urls:
+            write_log("❌ 未提取到 Poshmark 商品图片", "error")
+            FAILED_URLS.append(url)
+            if own_driver:
+                driver.quit()
+            return False
+
+        # s_→l_ 升级大图，去重
+        seen_ids = set()
+        final_urls = []
+        for u in img_urls:
+            m = _re.search(r'/([sl])_([a-f0-9]{24})\.', u)
+            if m:
+                pid = m.group(2)
+                if pid not in seen_ids:
+                    seen_ids.add(pid)
+                    final_urls.append(u.replace(f"/{m.group(1)}_", "/l_"))
+            else:
+                final_urls.append(u)
+        img_urls = list(dict.fromkeys(final_urls))
+        write_log(f"✅ 提取到 {len(img_urls)} 张 Poshmark 商品图片", "success")
+
+        # 直接下载（CloudFront 不需要 auth）
+        download_headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": url,
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        }
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        results = []
+        download_args = [(u, save_folder, download_headers, {}, i)
+                         for i, u in enumerate(img_urls)]
+        with ThreadPoolExecutor(max_workers=min(DOWNLOAD_WORKERS, len(img_urls))) as executor:
+            futures = {executor.submit(_download_single_image, arg): arg
+                       for arg in download_args}
+            for future in as_completed(futures):
+                results.append(future.result())
+
+        ok = sum(1 for r in results if r)
+        fail = len(results) - ok
+        FAIL_COUNT += fail
+        if fail > 0:
+            write_log(f"❌ {fail} 张图片下载失败", "error")
+        write_log(f"✅ Poshmark 商品处理完成：成功 {ok}/{len(img_urls)} 张", "success")
+        return ok > 0
+
+    except Exception as e:
+        write_log(f"❌ Poshmark 抓取异常：{e}", "error")
+        FAILED_URLS.append(url)
+        return False
+    finally:
+        if own_driver and driver:
+            try:
+                driver.quit()
+            except:
+                pass
+
+
 def start_crawl_task(urls_text, debug_mode, wait_time=0):
     global STOP_TASK, LOG_FILE, CUSTOM_SAVE_ROOT, SESSION_SAVE_ROOT, TOTAL_TASKS, CURRENT_TASK, SUCCESS_COUNT, FAIL_COUNT, FAILED_URLS
     import time as _time
@@ -1840,7 +1940,9 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
                 _on_progress(CURRENT_TASK, TOTAL_TASKS, SUCCESS_COUNT, FAIL_COUNT)
 
             # 按域名分流平台
-            if "vestiairecollective.com" in url:
+            if "poshmark.com" in url:
+                result = scrape_poshmark_by_browser(url, save_root, debug_mode, driver=shared_driver)
+            elif "vestiairecollective.com" in url:
                 result = scrape_vc_by_browser(url, save_root, debug_mode, driver=shared_driver)
             elif "depop.com" in url:
                 result = scrape_depop_by_browser(url, save_root, debug_mode, driver=shared_driver)
