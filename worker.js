@@ -49,13 +49,15 @@ export default {
       const r = await fetch(`${RAW}/update.json`);
       if (!r.ok) return new Response("Unavailable", { status: 502 });
       const d = await r.json();
-      d.download_url = d.download_url || `https://${url.hostname}/download`;
+      // 下载走 Worker 代理（CDN 加速，国内用户也能下）
+      const v = d.version || "";
+      d.download_url = `https://${url.hostname}/download?v=${v.startsWith("v") ? v : `v${v}`}`;
       return Response.json(d, { headers: { "Access-Control-Allow-Origin": "*" } });
     }
 
     // /download — EXE（应用内更新用，兼容所有版本）
     if (p === "/download") {
-      const v = await getVersion();
+      const v = url.searchParams.get("v") || await getVersion();
       if (!v) return new Response("Version unavailable", { status: 502 });
       return proxy(`${DL}/${v}/ImageMAX.exe`, "ImageMAX.exe");
     }
