@@ -6,21 +6,24 @@ Cal.com 极简风格 · 单窗口布局
 import os
 import sys
 import glob
+import time
+from math import gcd
 
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QLabel, QLineEdit, QPlainTextEdit, QComboBox,
     QCheckBox, QPushButton, QProgressBar, QFileDialog, QMenu,
     QMessageBox, QDialog, QFrame, QSizePolicy, QListWidget, QScrollArea,
+    QSlider, QSpinBox,
 )
 from PySide6.QtCore import Qt, Signal, QThread, QTimer, QMimeData
-from PySide6.QtGui import QFont, QIcon, QPixmap, QPainter
+from PySide6.QtGui import QFont, QIcon, QPixmap, QPainter, QColor, QPen, QBrush
 import Vinted_抓图 as backend
 import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -46,8 +49,9 @@ _RELEASE_DICT = {
     "隐形水印": "数字水印",
     "无损画质": "原画输出",
     "高级防检测": "AI指纹重构",
-    "机模画幅匹配": "机型自定义",
+    "机模画幅匹配": "画幅匹配",
     "深度防重处理": "指纹深度重建",
+    "自定义裁剪": "自定义裁剪",
     "输出版本数": "指纹版本数",
     # 按钮
     "开始抓取": "开始采集",
@@ -156,7 +160,7 @@ class DropPlainTextEdit(QPlainTextEdit):
 class LocalProcessWorker(QThread):
     log_signal = Signal(str, str)
     progress_signal = Signal(int, int)
-    finished_signal = Signal(int)
+    finished_signal = Signal(int, bool)  # (ok_count, stopped)
 
     def __init__(self, paths, parent=None):
         super().__init__(parent)
@@ -168,14 +172,18 @@ class LocalProcessWorker(QThread):
         be._on_status = lambda t: self.log_signal.emit(t, "info")
         total = len(self.paths)
         ok = 0
+        stopped = False
         for i, p in enumerate(self.paths):
+            if be.STOP_TASK:
+                stopped = True
+                break
             self.progress_signal.emit(i + 1, total)
             if not os.path.exists(p):
                 self.log_signal.emit(f"文件不存在，跳过: {os.path.basename(p)}", "warning")
                 continue
             if be.process_image(p, skip_gps=False):
                 ok += 1
-        self.finished_signal.emit(ok)
+        self.finished_signal.emit(ok, stopped)
 
 
 # ====================== Vinted 抓图 Worker ======================
@@ -587,11 +595,624 @@ class AiBgDialog(QDialog):
         subprocess.Popen(["explorer", os.path.abspath(".")])
 
 
+# ====================== 自定义裁剪对话框 ======================
+class CropDialog(QDialog):
+    EDGE_PRESETS = [
+        ("去底部水印", 0, 8, 0, 0),
+        ("去状态栏", 5, 0, 0, 0),
+        ("上下电影框", 10, 10, 0, 0),
+        ("清空全部", 0, 0, 0, 0),
+    ]
+    REF_RATIOS = [("16:9", 1920, 1080), ("4:3", 1600, 1200), ("1:1", 1080, 1080),
+                  ("3:4", 900, 1200), ("9:16", 1080, 1920)]
+
+    def __init__(self, top, bottom, left, right, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("自定义裁剪")
+        self.setFixedSize(590, 530)
+        self.setStyleSheet("QDialog { background: #ffffff; }")
+        self._orig = (top, bottom, left, right)
+        self._ref_w, self._ref_h = 1600, 1200  # 默认 4:3
+        self._setup_ui(top, bottom, left, right)
+
+    @property
+    def values(self):
+        return (self.slider_top.value(), self.slider_bottom.value(),
+                self.slider_left.value(), self.slider_right.value())
+
+    def _setup_ui(self, top, bottom, left, right):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 18, 24, 14)
+        root.setSpacing(10)
+
+        # ── 参考画幅选择 ──
+        top_row = QHBoxLayout()
+        top_row.setSpacing(8)
+        lbl_ref = QLabel("参考画幅：")
+        lbl_ref.setStyleSheet("font-size:12px; color:#374151; font-weight:bold; background:transparent;")
+        top_row.addWidget(lbl_ref)
+        self.combo_ref = QComboBox()
+        self.combo_ref.setFixedWidth(80)
+        for label, w, h in self.REF_RATIOS:
+            self.combo_ref.addItem(label)
+        self.combo_ref.setCurrentIndex(1)  # 4:3 default
+        self.combo_ref.currentIndexChanged.connect(self._on_ref_changed)
+        top_row.addWidget(self.combo_ref)
+        top_row.addSpacing(16)
+        lbl_hint = QLabel("图示绿色=保留   红色=裁掉")
+        lbl_hint.setStyleSheet("font-size:11px; color:#9ca3af; background:transparent;")
+        top_row.addWidget(lbl_hint)
+        top_row.addStretch()
+        root.addLayout(top_row)
+
+        # ── 主体：canvas + 控制 ──
+        body = QHBoxLayout()
+        body.setSpacing(18)
+
+        # 左：示意图
+        cw, ch = 230, 320
+        self.canvas = QLabel()
+        self.canvas.setFixedSize(cw, ch)
+        self.canvas.setStyleSheet("background:#f3f4f6; border:1px solid #d1d5db; border-radius:6px;")
+        body.addWidget(self.canvas)
+
+        # 右：控制区
+        ctrl = QVBoxLayout()
+        ctrl.setSpacing(5)
+
+        def _mk_row(name, val):
+            row = QHBoxLayout()
+            row.setSpacing(5)
+            lbl = QLabel(name)
+            lbl.setFixedWidth(16)
+            lbl.setAlignment(Qt.AlignCenter)
+            lbl.setStyleSheet("font-size:15px; font-weight:bold; color:#374151; background:transparent;")
+            row.addWidget(lbl)
+            sld = QSlider(Qt.Horizontal)
+            sld.setRange(0, 50)
+            sld.setValue(val)
+            sld.setFixedWidth(140)
+            sld.setStyleSheet("""
+                QSlider::groove:horizontal {
+                    background: #e5e7eb; height: 6px; border-radius: 3px;
+                }
+                QSlider::sub-page:horizontal {
+                    background: #10b981; height: 6px; border-radius: 3px;
+                }
+                QSlider::handle:horizontal {
+                    background: #ffffff; width: 16px; height: 16px;
+                    margin: -5px 0; border-radius: 8px;
+                    border: 2px solid #10b981;
+                }
+                QSlider::handle:horizontal:hover {
+                    background: #ecfdf5; border-color: #059669;
+                }
+                QSlider::handle:horizontal:pressed {
+                    background: #d1fae5; border-color: #047857;
+                }
+            """)
+            row.addWidget(sld)
+            sp = QSpinBox()
+            sp.setRange(0, 50)
+            sp.setValue(val)
+            sp.setSuffix("%")
+            sp.setFixedWidth(64)
+            sp.setFixedHeight(24)
+            sp.setStyleSheet("""
+                QSpinBox {
+                    font-size: 13px; color: #1f2937; font-weight: bold;
+                    background: #ffffff; border: 1px solid #d1d5db;
+                    border-radius: 4px; padding: 2px 6px;
+                }
+                QSpinBox:focus { border-color: #10b981; }
+                QSpinBox::up-button, QSpinBox::down-button { width: 16px; }
+            """)
+            sld.valueChanged.connect(sp.setValue)
+            sp.valueChanged.connect(sld.setValue)
+            row.addWidget(sp)
+            ctrl.addLayout(row)
+            return sld
+
+        self.slider_top = _mk_row("上", top)
+        self.slider_bottom = _mk_row("下", bottom)
+        self.slider_left = _mk_row("左", left)
+        self.slider_right = _mk_row("右", right)
+
+        for s in [self.slider_top, self.slider_bottom, self.slider_left, self.slider_right]:
+            s.valueChanged.connect(self._redraw_canvas)
+
+        ctrl.addSpacing(8)
+
+        # ── 计算结果面板 ──
+        panel = QFrame()
+        panel.setStyleSheet("QFrame { background:#f9fafb; border:1px solid #e5e7eb; border-radius:6px; }")
+        panel_lo = QVBoxLayout(panel)
+        panel_lo.setContentsMargins(12, 10, 12, 10)
+        panel_lo.setSpacing(4)
+
+        self.lbl_result_dim = QLabel()
+        self.lbl_result_dim.setStyleSheet("font-size:13px; font-weight:bold; color:#1f2937; background:transparent;")
+        panel_lo.addWidget(self.lbl_result_dim)
+
+        self.lbl_result_ratio = QLabel()
+        self.lbl_result_ratio.setStyleSheet("font-size:12px; color:#6b7280; background:transparent;")
+        panel_lo.addWidget(self.lbl_result_ratio)
+
+        self.lbl_result_crop = QLabel()
+        self.lbl_result_crop.setStyleSheet("font-size:11px; color:#9ca3af; background:transparent;")
+        panel_lo.addWidget(self.lbl_result_crop)
+
+        ctrl.addWidget(panel)
+        ctrl.addStretch()
+        body.addLayout(ctrl)
+        root.addLayout(body)
+
+        # ── 预设 ──
+        presets_row = QHBoxLayout()
+        presets_row.setSpacing(6)
+        lbl_pre = QLabel("快捷预设：")
+        lbl_pre.setStyleSheet("font-size:12px; color:#6b7280; background:transparent;")
+        presets_row.addWidget(lbl_pre)
+        for name, t, b, l, r in self.EDGE_PRESETS:
+            btn = QPushButton(name)
+            btn.setFixedHeight(26)
+            btn.setStyleSheet("""
+                QPushButton { background:#ffffff; border:1px solid #d1d5db;
+                border-radius:3px; padding:1px 10px; font-size:11px; color:#374151; }
+                QPushButton:hover { background:#f3f4f6; border-color:#9ca3af; }
+            """)
+            btn.clicked.connect(lambda checked, tt=t, bb=b, ll=l, rr=r:
+                                self._apply_edge_preset(tt, bb, ll, rr))
+            presets_row.addWidget(btn)
+        presets_row.addStretch()
+        root.addLayout(presets_row)
+
+        # ── 目标比例 ──
+        ratio_row = QHBoxLayout()
+        ratio_row.setSpacing(6)
+        lbl_ratio = QLabel("裁为目标比例：")
+        lbl_ratio.setStyleSheet("font-size:12px; color:#6b7280; background:transparent;")
+        ratio_row.addWidget(lbl_ratio)
+        ratio_targets = [("1:1 方形", 1, 1), ("4:5", 4, 5), ("3:4", 3, 4),
+                         ("9:16 全屏", 9, 16), ("16:9 横屏", 16, 9), ("2:3", 2, 3)]
+        for label, rw, rh in ratio_targets:
+            btn = QPushButton(label)
+            btn.setFixedHeight(26)
+            btn.setStyleSheet("""
+                QPushButton { background:#ecfdf5; border:1px solid #a7f3d0;
+                border-radius:3px; padding:1px 8px; font-size:11px; color:#065f46; }
+                QPushButton:hover { background:#d1fae5; border-color:#6ee7b7; }
+            """)
+            btn.clicked.connect(lambda checked, rw=rw, rh=rh: self._apply_ratio_target(rw, rh))
+            ratio_row.addWidget(btn)
+        ratio_row.addStretch()
+        root.addLayout(ratio_row)
+
+        # ── 确定/取消 ──
+        btns = QHBoxLayout()
+        btns.addStretch()
+        cancel = QPushButton("取消")
+        cancel.setFixedSize(80, 32)
+        cancel.setStyleSheet("""
+            QPushButton { background:#ffffff; border:1px solid #d1d5db;
+            border-radius:4px; font-size:13px; color:#374151; }
+            QPushButton:hover { background:#f3f4f6; }
+        """)
+        cancel.clicked.connect(self.reject)
+        btns.addWidget(cancel)
+        ok = QPushButton("确定")
+        ok.setFixedSize(80, 32)
+        ok.setStyleSheet("""
+            QPushButton { background:#10b981; color:white; border:none;
+            border-radius:4px; font-size:13px; font-weight:bold; }
+            QPushButton:hover { background:#059669; }
+        """)
+        ok.clicked.connect(self._on_ok)
+        ok.setDefault(True)
+        btns.addWidget(ok)
+        root.addLayout(btns)
+
+        self._redraw_canvas()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+            self._on_ok()
+        elif event.key() == Qt.Key_Escape:
+            self.reject()
+        else:
+            super().keyPressEvent(event)
+
+    def _on_ref_changed(self, idx):
+        self._ref_w, self._ref_h = self.REF_RATIOS[idx][1], self.REF_RATIOS[idx][2]
+        self._redraw_canvas()
+
+    def _apply_edge_preset(self, t, b, l, r):
+        self.slider_top.setValue(t)
+        self.slider_bottom.setValue(b)
+        self.slider_left.setValue(l)
+        self.slider_right.setValue(r)
+
+    def _apply_ratio_target(self, target_w, target_h):
+        """根据参考画幅，计算达到目标比例需要的边距"""
+        rw, rh = self._ref_w, self._ref_h
+        cur = rw / rh
+        target = target_w / target_h
+        if abs(cur - target) < 0.01:
+            # 已经是目标比例，归零
+            self.slider_top.setValue(0)
+            self.slider_bottom.setValue(0)
+            self.slider_left.setValue(0)
+            self.slider_right.setValue(0)
+            return
+        # 取短边方向裁切
+        if cur > target:
+            # 太宽，裁左右
+            new_w = rh * target
+            trim_pct = max(1, round((rw - new_w) / rw * 50))
+            self.slider_top.setValue(0)
+            self.slider_bottom.setValue(0)
+            self.slider_left.setValue(trim_pct)
+            self.slider_right.setValue(trim_pct)
+        else:
+            # 太高，裁上下
+            new_h = rw / target
+            trim_pct = max(1, round((rh - new_h) / rh * 50))
+            self.slider_top.setValue(trim_pct)
+            self.slider_bottom.setValue(trim_pct)
+            self.slider_left.setValue(0)
+            self.slider_right.setValue(0)
+
+    def _redraw_canvas(self):
+        t = self.slider_top.value()
+        b = self.slider_bottom.value()
+        l = self.slider_left.value()
+        r = self.slider_right.value()
+        rw, rh = self._ref_w, self._ref_h
+        # 计算结果
+        crop_t = int(rh * t / 100)
+        crop_b = int(rh * b / 100)
+        crop_l = int(rw * l / 100)
+        crop_r = int(rw * r / 100)
+        new_w = rw - crop_l - crop_r
+        new_h = rh - crop_t - crop_b
+        # 面板文字
+        self.lbl_result_dim.setText(f"裁后尺寸  {new_w} × {new_h}")
+        ratio_str = f"{new_w}:{new_h}"
+        if new_h > 0:
+            g = gcd(new_w, new_h)
+            ratio_str = f"{new_w // g}:{new_h // g}"
+        self.lbl_result_ratio.setText(f"画幅比例  {ratio_str}")
+        crop_desc = []
+        if t > 0: crop_desc.append(f"上-{t}%")
+        if b > 0: crop_desc.append(f"下-{b}%")
+        if l > 0: crop_desc.append(f"左-{l}%")
+        if r > 0: crop_desc.append(f"右-{r}%")
+        self.lbl_result_crop.setText("  ".join(crop_desc) if crop_desc else "未设置裁切")
+        # 画示意图 — 画布匹配参考画幅比例
+        cw, ch = 230, 320
+        pm = QPixmap(cw, ch)
+        pm.fill(QColor("#f3f4f6"))
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.Antialiasing)
+        margin = 14
+        max_w, max_h = cw - margin * 2, ch - margin * 2
+        ref_ratio = rw / rh if rh > 0 else 1.0
+        if ref_ratio > max_w / max_h:
+            ow, oh = max_w, int(max_w / ref_ratio)
+        else:
+            ow, oh = int(max_h * ref_ratio), max_h
+        ox, oy = (cw - ow) // 2, (ch - oh) // 2
+        # 红色背景（裁掉区域）
+        p.setBrush(QColor(254, 226, 226))
+        p.setPen(Qt.NoPen)
+        p.drawRect(ox, oy, ow, oh)
+        # 绿色保留区域
+        ct = int(oh * t / 100)
+        cb = int(oh * b / 100)
+        cl = int(ow * l / 100)
+        cr = int(ow * r / 100)
+        rx, ry = ox + cl, oy + ct
+        crop_w, crop_h = ow - cl - cr, oh - ct - cb
+        if crop_w < 2: crop_w = 2
+        if crop_h < 2: crop_h = 2
+        p.setBrush(QColor(209, 250, 229))
+        p.drawRect(rx, ry, crop_w, crop_h)
+        # 绿色边框
+        p.setPen(QPen(QColor("#10b981"), 2.5))
+        p.setBrush(Qt.NoBrush)
+        p.drawRect(rx, ry, crop_w, crop_h)
+        # 灰色外框
+        p.setPen(QPen(QColor("#9ca3af"), 1.2))
+        p.drawRect(ox, oy, ow, oh)
+        # 百分比标注
+        font = QFont("Microsoft YaHei", 9)
+        p.setFont(font)
+        p.setPen(QColor("#dc2626"))
+        if t > 0:
+            p.drawText(ox + 4, oy + ct - 4, f"-{t}%")
+        if b > 0:
+            p.drawText(ox + 4, oy + oh - cb + 12, f"-{b}%")
+        if l > 0:
+            p.drawText(ox + 2, oy + oh // 2, f"-{l}%")
+        if r > 0:
+            p.drawText(ox + ow - cr - 28, oy + oh // 2, f"-{r}%")
+        # 画幅比例标注（保留区中间）
+        if crop_w > 40 and crop_h > 30:
+            p.setPen(QColor("#065f46"))
+            small_font = QFont("Microsoft YaHei", 10, QFont.Bold)
+            p.setFont(small_font)
+            label = f"{new_w // g if new_h > 0 else new_w}:{new_h // g if new_h > 0 else new_h}"
+            tr = p.boundingRect(rx, ry, crop_w, crop_h, Qt.AlignCenter, label)
+            if tr.width() < crop_w - 10:
+                p.drawText(rx, ry, crop_w, crop_h, Qt.AlignCenter, label)
+        p.end()
+        self.canvas.setPixmap(pm)
+
+    def _on_ok(self):
+        t = self.slider_top.value()
+        b = self.slider_bottom.value()
+        l = self.slider_left.value()
+        r = self.slider_right.value()
+        if t + b > 95 or l + r > 95:
+            QMessageBox.warning(self, "参数错误", "单方向（上下或左右）裁切合计不能超过 95%。")
+            return
+        self.accept()
+
+
+# ====================== 水印设置对话框 ======================
+class WatermarkDialog(QDialog):
+    POSITIONS = ["随机", "左上", "中上", "右上", "左中", "居中", "右中", "左下", "中下", "右下"]
+
+    def __init__(self, text, opacity, position, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("隐形水印设置")
+        self.setFixedSize(360, 220)
+        self.setStyleSheet("QDialog { background: #ffffff; }")
+        self.text = text
+        self.opacity = opacity
+        self.position = position
+        self._setup_ui(text, opacity, position)
+
+    def _setup_ui(self, text, opacity, position):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 20, 24, 16)
+        root.setSpacing(12)
+
+        # 文字
+        r1 = QHBoxLayout()
+        r1.addWidget(QLabel("水印文字："))
+        self._txt = QLineEdit(text)
+        self._txt.setMaxLength(20)
+        self._txt.setPlaceholderText("VINTED")
+        self._txt.setStyleSheet("font-size:13px; padding:4px 8px; border:1px solid #d1d5db; border-radius:4px;")
+        r1.addWidget(self._txt)
+        root.addLayout(r1)
+
+        # 透明度
+        r2 = QHBoxLayout()
+        r2.addWidget(QLabel("透明度："))
+        self._sld = QSlider(Qt.Horizontal)
+        self._sld.setRange(0, 100)
+        self._sld.setValue(opacity)
+        self._sld.setStyleSheet("""
+            QSlider::groove:horizontal { background:#e5e7eb; height:6px; border-radius:3px; }
+            QSlider::sub-page:horizontal { background:#10b981; height:6px; border-radius:3px; }
+            QSlider::handle:horizontal { background:#fff; width:14px; height:14px;
+            margin:-4px 0; border-radius:7px; border:2px solid #10b981; }
+        """)
+        r2.addWidget(self._sld, 1)
+        self._lbl_opacity = QLabel(f"{opacity}%")
+        self._lbl_opacity.setFixedWidth(32)
+        r2.addWidget(self._lbl_opacity)
+        self._sld.valueChanged.connect(lambda v: self._lbl_opacity.setText(f"{v}%"))
+        root.addLayout(r2)
+
+        # 位置
+        r3 = QHBoxLayout()
+        r3.addWidget(QLabel("位置："))
+        self._combo_pos = QComboBox()
+        self._combo_pos.addItems(self.POSITIONS)
+        self._combo_pos.setCurrentText(position)
+        r3.addWidget(self._combo_pos)
+        r3.addStretch()
+        root.addLayout(r3)
+
+        root.addStretch()
+
+        # 按钮
+        btns = QHBoxLayout()
+        btns.addStretch()
+        cancel = QPushButton("取消")
+        cancel.clicked.connect(self.reject)
+        btns.addWidget(cancel)
+        ok = QPushButton("确定")
+        ok.setStyleSheet("QPushButton { background:#10b981; color:white; border:none; border-radius:4px; padding:6px 20px; font-weight:bold; } QPushButton:hover { background:#059669; }")
+        ok.clicked.connect(self._on_ok)
+        ok.setDefault(True)
+        btns.addWidget(ok)
+        root.addLayout(btns)
+
+    def _on_ok(self):
+        if self._sld.value() < 1:
+            if QMessageBox.No == QMessageBox.question(self, "透明度提示",
+                    "透明度为 0% 时水印完全不可见，无实际效果。\n是否继续？",
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No):
+                return
+        self.text = self._txt.text().strip() or "VINTED"
+        self.opacity = self._sld.value()
+        self.position = self._combo_pos.currentText()
+        self.accept()
+
+
+# ====================== 处理完成对话框 ======================
+class CompletionDialog(QDialog):
+    """仿 EXIF 信息面板的完成对话框，在线采集和本地处理共用"""
+
+    def __init__(self, title, stats, seconds, out_dir, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setFixedSize(430, 530)
+        self.setStyleSheet("QDialog { background: #ffffff; }")
+        self._stats = stats
+        self._seconds = seconds
+        self._out_dir = out_dir
+        self._action = None  # 'open' / 'preview' / None
+        self._setup_ui()
+
+    @property
+    def action(self):
+        return self._action
+
+    def _setup_ui(self):
+        be = __import__('Vinted_抓图')
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 20, 24, 16)
+        root.setSpacing(10)
+        v = "<span style='color:#0d9488;font-weight:600;'>"
+        cv = "</span>"
+
+        # ── 标题 ──
+        title_lbl = QLabel(f"✅  {self.windowTitle()}")
+        title_lbl.setStyleSheet("font-size:16px; font-weight:bold; color:#1f2937; background:transparent;")
+        root.addWidget(title_lbl)
+
+        # ── 统计（HTML 高亮数字） ──
+        stats_html = f"<span style='font-size:13px;color:#374151;'>{self._stats}</span>"
+        if self._seconds:
+            m, s = divmod(int(self._seconds), 60)
+            t = f"{m}分{s}秒" if m else f"{s}秒"
+            stats_html += f"<br><span style='font-size:12px;color:#6b7280;'>⏱ 本次耗时 {v}{t}{cv}</span>"
+        stats_lbl = QLabel(stats_html)
+        stats_lbl.setTextFormat(Qt.RichText)
+        root.addWidget(stats_lbl)
+
+        # ── EXIF 信息面板 ──
+        gb = QFrame()
+        gb.setStyleSheet("QFrame { background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; }")
+        gb_lo = QVBoxLayout(gb)
+        gb_lo.setContentsMargins(14, 10, 14, 10)
+        gb_lo.setSpacing(2)
+
+        hdr = QLabel("📷 拍摄元数据（已注入每张图片）")
+        hdr.setStyleSheet("font-size:12px; font-weight:bold; color:#1f2937; background:transparent; padding-bottom:4px;")
+        gb_lo.addWidget(hdr)
+
+        rows = []
+        se = getattr(be, 'SESSION_EXIF', None)
+        if se:
+            make, model, software, dev_model, exposure, fnum, iso, lens = se
+            rows.append(("设备", f"{make} {model}"))
+            rows.append(("镜头", lens))
+            rows.append(("光圈", f"f/{fnum[0]/fnum[1]:.1f}"))
+            rows.append(("ISO", str(iso)))
+            rows.append(("曝光", f"1/{int(exposure[1]/exposure[0])}s" if exposure[0] else "Auto"))
+        sg = getattr(be, 'SESSION_GPS', None)
+        if sg:
+            lat, lon, city = sg
+            rows.append(("纬度", f"{abs(lat):.4f}° {'N' if lat>=0 else 'S'}"))
+            rows.append(("经度", f"{abs(lon):.4f}° {'E' if lon>=0 else 'W'}"))
+            rows.append(("地点", f"{getattr(be,'SELECTED_COUNTRY','')} {city}"))
+        sj = getattr(be, 'SESSION_JPEG', None)
+        if sj:
+            q, sub = sj
+            rows.append(("画质", f"JPEG {q} · {sub}"))
+
+        for label, value in rows:
+            row = QHBoxLayout()
+            row.setSpacing(8)
+            k = QLabel(label)
+            k.setFixedWidth(52)
+            k.setStyleSheet("font-size:12px; color:#9ca3af; background:transparent;")
+            row.addWidget(k)
+            v = QLabel(f"{v}{value}{cv}")
+            v.setTextFormat(Qt.RichText)
+            row.addWidget(v)
+            row.addStretch()
+            gb_lo.addLayout(row)
+
+        root.addWidget(gb)
+
+        # ── 防检测处理 ──
+        features = []
+        if be.ADVANCED_ANTI_DETECT_ENABLED:
+            features.append("🧠 AI指纹重构")
+        if be.DEEP_ANTI_DUPLICATE_ENABLED:
+            features.append(f"🔬 指纹深度重建(×{be.DEEP_MODE_VARIANTS})")
+        if be.COMPRESS_ENABLED:
+            features.append("🖼 智能画质")
+        if be.LOSSLESS_ENABLED:
+            features.append("📦 原画输出")
+        if be.WATERMARK_ENABLED:
+            features.append(f"🔏 {be.WATERMARK_TEXT} {be.WATERMARK_OPACITY}%")
+        if be.DEVICE_CROP_ENABLED:
+            features.append("📐 画幅匹配")
+        if be.CUSTOM_CROP_ENABLED:
+            parts = []
+            t, b, l, r = be.CROP_TOP_PCT, be.CROP_BOTTOM_PCT, be.CROP_LEFT_PCT, be.CROP_RIGHT_PCT
+            if t: parts.append(f"上{t}%")
+            if b: parts.append(f"下{b}%")
+            if l: parts.append(f"左{l}%")
+            if r: parts.append(f"右{r}%")
+            features.append(f"✂ 裁剪 {' '.join(parts)}" if parts else "✂ 自定义裁剪")
+
+        if features:
+            feat_lbl = QLabel(f"<span style='font-size:12px;color:#6b7280;'>已启用：</span>"
+                              f"<span style='font-size:12px;color:#374151;'>{'  '.join(features)}</span>")
+            feat_lbl.setTextFormat(Qt.RichText)
+            feat_lbl.setWordWrap(True)
+            root.addWidget(feat_lbl)
+
+        # ── 输出路径 ──
+        if self._out_dir:
+            short = os.path.basename(self._out_dir)
+            path_lbl = QLabel(f"📁 <span style='color:#6b7280;'>{short}</span>")
+            path_lbl.setTextFormat(Qt.RichText)
+            path_lbl.setToolTip(self._out_dir)
+            root.addWidget(path_lbl)
+        root.addStretch()
+
+        # ── 按钮 ──
+        btns = QHBoxLayout()
+        btns.addStretch()
+        if self._out_dir:
+            btn_open = QPushButton("打开目录")
+            btn_open.setStyleSheet("""
+                QPushButton { background:#fff; border:1px solid #d1d5db;
+                border-radius:4px; padding:5px 14px; font-size:13px; color:#374151; }
+                QPushButton:hover { background:#f3f4f6; }
+            """)
+            btn_open.clicked.connect(lambda: self._do_action('open'))
+            btns.addWidget(btn_open)
+        btn_preview = QPushButton("预览对比")
+        btn_preview.setStyleSheet("""
+            QPushButton { background:#fff; border:1px solid #d1d5db;
+            border-radius:4px; padding:5px 14px; font-size:13px; color:#374151; }
+            QPushButton:hover { background:#f3f4f6; }
+        """)
+        btn_preview.clicked.connect(lambda: self._do_action('preview'))
+        btns.addWidget(btn_preview)
+        ok = QPushButton("确定")
+        ok.setStyleSheet("""
+            QPushButton { background:#10b981; color:white; border:none;
+            border-radius:4px; padding:5px 18px; font-size:13px; font-weight:bold; }
+            QPushButton:hover { background:#059669; }
+        """)
+        ok.clicked.connect(self.accept)
+        ok.setDefault(True)
+        btns.addWidget(ok)
+        root.addLayout(btns)
+
+    def _do_action(self, act):
+        self._action = act
+        self.accept()
+
+
 class VintedScraperGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self._worker = None
         self._local_worker = None
+        self._task_start_time = 0
         self._geo_setting_up = False
 
         self.setWindowTitle(f"图像重构MAX v{update_checker.CURRENT_VERSION} · 已就绪")
@@ -604,12 +1225,12 @@ class VintedScraperGUI(QMainWindow):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         if RELEASE_MODE:
-            self.setMinimumSize(500, 620)
+            self.setMinimumSize(520, 620)
             self.setMaximumHeight(620)
-            self.resize(560, 620)
+            self.resize(580, 620)
         else:
-            self.setMinimumSize(500, 700)
-            self.resize(580, 750)
+            self.setMinimumSize(520, 700)
+            self.resize(600, 750)
 
         screen = QApplication.primaryScreen().geometry()
         self.move((screen.width() - 500) // 2, (screen.height() - self.height()) // 2)
@@ -639,10 +1260,18 @@ class VintedScraperGUI(QMainWindow):
         self._mode = cfg.get("mode", "随机位置")
         self._compress = cfg.get("compress_enabled", "False") == "True"
         self._watermark = cfg.get("watermark_enabled", "False") == "True"
+        self._watermark_text = cfg.get("watermark_text", "VINTED")
+        self._watermark_opacity = int(cfg.get("watermark_opacity", "1"))
+        self._watermark_pos = cfg.get("watermark_pos", "随机")
         self._lossless = cfg.get("lossless_enabled", "False") == "True"
         self._advanced_anti_detect = cfg.get("advanced_anti_detect", "False") == "True"
         self._device_crop = cfg.get("device_crop", "False") == "True"
         self._device_model = cfg.get("device_model", "随机")
+        self._crop_enabled = cfg.get("custom_crop_enabled", "False") == "True"
+        self._crop_top = int(cfg.get("crop_top", "0"))
+        self._crop_bottom = int(cfg.get("crop_bottom", "0"))
+        self._crop_left = int(cfg.get("crop_left", "0"))
+        self._crop_right = int(cfg.get("crop_right", "0"))
         self._deep_anti_duplicate = cfg.get("deep_anti_duplicate", "False") == "True"
         self._help_shown = cfg.get("help_shown", "False") == "True"
         self._deep_variants = int(cfg.get("deep_variants", "2"))
@@ -650,10 +1279,18 @@ class VintedScraperGUI(QMainWindow):
         backend.CUSTOM_SAVE_ROOT = self._save_path
         backend.COMPRESS_ENABLED = self._compress
         backend.WATERMARK_ENABLED = self._watermark
+        backend.WATERMARK_TEXT = self._watermark_text
+        backend.WATERMARK_OPACITY = self._watermark_opacity
+        backend.WATERMARK_POSITION = self._watermark_pos
         backend.LOSSLESS_ENABLED = self._lossless
         backend.ADVANCED_ANTI_DETECT_ENABLED = self._advanced_anti_detect
         backend.DEVICE_CROP_ENABLED = self._device_crop
         backend.SELECTED_DEVICE = self._device_model
+        backend.CUSTOM_CROP_ENABLED = self._crop_enabled
+        backend.CROP_TOP_PCT = self._crop_top
+        backend.CROP_BOTTOM_PCT = self._crop_bottom
+        backend.CROP_LEFT_PCT = self._crop_left
+        backend.CROP_RIGHT_PCT = self._crop_right
         backend.DEEP_ANTI_DUPLICATE_ENABLED = self._deep_anti_duplicate
         backend.DEEP_MODE_VARIANTS = self._deep_variants
         backend.ENABLE_FILE_LOG = not RELEASE_MODE
@@ -692,10 +1329,18 @@ class VintedScraperGUI(QMainWindow):
             "country": self._country, "city": self._city, "mode": self._mode,
             "compress_enabled": str(self._compress),
             "watermark_enabled": str(self._watermark),
+            "watermark_text": self._watermark_text,
+            "watermark_opacity": str(self._watermark_opacity),
+            "watermark_pos": self._watermark_pos,
             "lossless_enabled": str(self._lossless),
             "advanced_anti_detect": str(self._advanced_anti_detect),
             "device_crop": str(self._device_crop),
             "device_model": self._device_model,
+            "custom_crop_enabled": str(self._crop_enabled),
+            "crop_top": str(self._crop_top),
+            "crop_bottom": str(self._crop_bottom),
+            "crop_left": str(self._crop_left),
+            "crop_right": str(self._crop_right),
             "deep_anti_duplicate": str(self._deep_anti_duplicate),
             "help_shown": str(self._help_shown),
             "deep_variants": str(self._deep_variants),
@@ -820,10 +1465,10 @@ class VintedScraperGUI(QMainWindow):
         r2.addWidget(self.combo_mode, 1)
         lo.addLayout(r2)
 
-        # 能力标签行
+        # 内置能力标签
         tag_row = QHBoxLayout()
-        tag_label = QLabel("图像结构重组 · EXIF元数据注入 · 色温Gamma校正 · 传感器噪声模拟 · 等多项核心处理")
-        tag_label.setStyleSheet("font-size:10px; color:#999; background:transparent; padding:2px 0;")
+        tag_label = QLabel("✅ 软件已内置防检测处理，开箱即用。下方为进阶调整选项，按需开启即可，非必需")
+        tag_label.setStyleSheet("font-size:11px; color:#059669; background:#ecfdf5; border-radius:4px; padding:4px 10px;")
         tag_row.addWidget(tag_label)
         tag_row.addStretch()
         lo.addLayout(tag_row)
@@ -849,22 +1494,42 @@ class VintedScraperGUI(QMainWindow):
 
         self.chk_compress   = _add_chk(r3, "智能压缩", "智能画质优化，适度降低文件大小")
         self.chk_lossless   = _add_chk(r3, "无损画质", "原画输出，quality=100")
-        self.chk_watermark  = _add_chk(r3, "隐形水印", "添加防重数字水印")
         self.chk_advanced_anti_detect = _add_chk(r3, "高级防检测", "AI 防护引擎")
-        r3.addStretch()
+        r3.addSpacing(6)
+        self.btn_watermark = QPushButton(_tr("隐形水印 ▸"))
+        self.btn_watermark.setFixedWidth(82)
+        self.btn_watermark.setToolTip("隐形数字水印，点击设置文字和透明度")
+        self.btn_watermark.setStyleSheet("""
+            QPushButton { background: #f3f4f6; border: 1px solid #d1d5db;
+            border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #374151; }
+            QPushButton:hover { background: #e5e7eb; border-color: #9ca3af; }
+        """)
+        r3.addWidget(self.btn_watermark, 0, Qt.AlignLeft)
+        r3.addSpacing(6)
+        self.btn_custom_crop = QPushButton(_tr("自定义裁剪 ▸"))
+        self.btn_custom_crop.setFixedWidth(88)
+        self.btn_custom_crop.setToolTip("四边百分比裁剪，支持预设和实时预览")
+        self.btn_custom_crop.setStyleSheet("""
+            QPushButton { background: #f3f4f6; border: 1px solid #d1d5db;
+            border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #374151; }
+            QPushButton:hover { background: #e5e7eb; border-color: #9ca3af; }
+        """)
+        r3.addWidget(self.btn_custom_crop)
+        r3.addSpacing(8)
         self.btn_reset = QPushButton(_tr("恢复默认"))
         self.btn_reset.setObjectName("btnSecondary")
         r3.addWidget(self.btn_reset)
+        r3.addStretch()
         lo.addLayout(r3)
 
         # 行 3b：复选框行2
         r3b = QHBoxLayout()
         r3b.setSpacing(10)
 
-        self.chk_device_crop = _add_chk(r3b, "机模画幅匹配", "根据随机设备型号裁切到原生画幅比例")
+        self.chk_device_crop = _add_chk(r3b, "机模画幅匹配", "匹配所选机型的原生画幅比例，最多裁切5%")
         self.combo_device = QComboBox()
         self.combo_device.addItems(backend.DEVICE_LIST)
-        self.combo_device.setToolTip("选择模拟设备型号")
+        self.combo_device.setToolTip("选择拍摄设备型号，写入EXIF信息（独立于画幅匹配）")
         self.combo_device.wheelEvent = lambda e: e.ignore()
         self.combo_device.setMaximumWidth(160)
         r3b.addWidget(self.combo_device)
@@ -882,6 +1547,62 @@ class VintedScraperGUI(QMainWindow):
         r3b.addWidget(self.combo_variants)
         r3b.addStretch()
         lo.addLayout(r3b)
+
+# 行 3c：裁剪状态（仅设置后显示）
+        self._crop_status_widget = QWidget()
+        self._crop_status_widget.setStyleSheet("background:transparent;")
+        r3c = QHBoxLayout(self._crop_status_widget)
+        r3c.setContentsMargins(0, 2, 0, 0)
+        r3c.setSpacing(8)
+        lbl_icon = QLabel("✂")
+        lbl_icon.setStyleSheet("font-size:13px; color:#10b981; background:transparent;")
+        r3c.addWidget(lbl_icon)
+        self.lbl_crop_summary = QLabel()
+        self.lbl_crop_summary.setTextFormat(Qt.RichText)
+        self.lbl_crop_summary.setStyleSheet("font-size:12px; color:#374151; background:transparent;")
+        r3c.addWidget(self.lbl_crop_summary)
+        self.btn_crop_clear = QLabel("✕ 清除")
+        self.btn_crop_clear.setAttribute(Qt.WA_Hover, True)
+        self.btn_crop_clear.setCursor(Qt.PointingHandCursor)
+        self.btn_crop_clear.setToolTip("一键清除裁剪设置")
+        self.btn_crop_clear.setStyleSheet("""
+            QLabel { background: #fef2f2; border: 1px solid #fca5a5;
+            border-radius: 3px; padding: 1px 8px; font-size: 12px; color: #dc2626; }
+            QLabel:hover { background: #fee2e2; border-color: #ef4444; color: #b91c1c; }
+        """)
+        self.btn_crop_clear.mousePressEvent = lambda e: self._clear_crop()
+        r3c.addWidget(self.btn_crop_clear)
+        r3c.addStretch()
+        self._crop_status_widget.hide()
+        lo.addWidget(self._crop_status_widget)
+
+        # 水印状态行（仅开启后显示）
+        self._watermark_status_widget = QWidget()
+        self._watermark_status_widget.setStyleSheet("background:transparent;")
+        r3d = QHBoxLayout(self._watermark_status_widget)
+        r3d.setContentsMargins(0, 2, 0, 0)
+        r3d.setSpacing(8)
+        lbl_wm_icon = QLabel("🔏")
+        lbl_wm_icon.setStyleSheet("font-size:13px; color:#10b981; background:transparent;")
+        r3d.addWidget(lbl_wm_icon)
+        self.lbl_watermark_summary = QLabel()
+        self.lbl_watermark_summary.setTextFormat(Qt.RichText)
+        self.lbl_watermark_summary.setStyleSheet("font-size:12px; color:#374151; background:transparent;")
+        r3d.addWidget(self.lbl_watermark_summary)
+        self.btn_watermark_clear = QLabel("✕ 清除")
+        self.btn_watermark_clear.setAttribute(Qt.WA_Hover, True)
+        self.btn_watermark_clear.setCursor(Qt.PointingHandCursor)
+        self.btn_watermark_clear.setToolTip("关闭隐形水印")
+        self.btn_watermark_clear.setStyleSheet("""
+            QLabel { background: #fef2f2; border: 1px solid #fca5a5;
+            border-radius: 3px; padding: 1px 8px; font-size: 12px; color: #dc2626; }
+            QLabel:hover { background: #fee2e2; border-color: #ef4444; color: #b91c1c; }
+        """)
+        self.btn_watermark_clear.mousePressEvent = lambda e: self._clear_watermark()
+        r3d.addWidget(self.btn_watermark_clear)
+        r3d.addStretch()
+        self._watermark_status_widget.hide()
+        lo.addWidget(self._watermark_status_widget)
 
         parent.addWidget(g)
 
@@ -1003,11 +1724,12 @@ class VintedScraperGUI(QMainWindow):
         self.combo_mode.setCurrentText(self._mode)
         self._update_mode_state()
         self.chk_compress.setChecked(self._compress)
-        self.chk_watermark.setChecked(self._watermark)
+        self._update_watermark_summary()
         self.chk_lossless.setChecked(self._lossless)
         self.chk_advanced_anti_detect.setChecked(self._advanced_anti_detect)
         self.chk_device_crop.setChecked(self._device_crop)
         self.combo_device.setCurrentText(self._device_model)
+        self._update_crop_summary()
         self.chk_deep_anti_duplicate.setChecked(self._deep_anti_duplicate)
         self.combo_variants.setCurrentText(str(self._deep_variants))
         self._update_dots()
@@ -1032,11 +1754,12 @@ class VintedScraperGUI(QMainWindow):
         self.combo_city.currentTextChanged.connect(self._on_city_changed)
         self.combo_mode.currentTextChanged.connect(self._on_mode_changed)
         self.chk_compress.toggled.connect(self._on_compress_toggled)
-        self.chk_watermark.toggled.connect(self._on_watermark_toggled)
+        self.btn_watermark.clicked.connect(self._open_watermark_dialog)
         self.chk_lossless.toggled.connect(self._on_lossless_toggled)
         self.chk_advanced_anti_detect.toggled.connect(self._on_advanced_anti_detect_toggled)
         self.chk_device_crop.toggled.connect(self._on_device_crop_toggled)
         self.combo_device.currentTextChanged.connect(self._on_device_changed)
+        self.btn_custom_crop.clicked.connect(self._open_crop_dialog)
         self.chk_deep_anti_duplicate.toggled.connect(self._on_deep_anti_duplicate_toggled)
         self.combo_variants.currentTextChanged.connect(self._on_variants_changed)
         self.btn_reset.clicked.connect(self._reset_defaults)
@@ -1151,11 +1874,51 @@ class VintedScraperGUI(QMainWindow):
         self._update_dots()
         self._save_config()
 
-    def _on_watermark_toggled(self, v):
-        self._watermark = v
-        backend.WATERMARK_ENABLED = v
-        self._update_dots()
+    def _update_watermark_summary(self):
+        if self._watermark:
+            v = "<span style='color:#0d9488;font-weight:600;'>"
+            cv = "</span>"
+            s = "<span style='color:#d1d5db;'>|</span>"
+            self.lbl_watermark_summary.setText(
+                f"水印：{v}{self._watermark_text}{cv}  {s}  "
+                f"透明度 {v}{self._watermark_opacity}%{cv}  {s}  "
+                f"位置 {v}{self._watermark_pos}{cv}")
+            self._watermark_status_widget.show()
+            self.btn_watermark.setText("隐形水印 ✓")
+            self.btn_watermark.setStyleSheet("""
+                QPushButton { background: #d1fae5; border: 1px solid #6ee7b7;
+                border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #065f46; }
+                QPushButton:hover { background: #a7f3d0; border-color: #34d399; }
+            """)
+        else:
+            self._watermark_status_widget.hide()
+            self.btn_watermark.setText("隐形水印 ▸")
+            self.btn_watermark.setStyleSheet("""
+                QPushButton { background: #f3f4f6; border: 1px solid #d1d5db;
+                border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #374151; }
+                QPushButton:hover { background: #e5e7eb; border-color: #9ca3af; }
+            """)
+
+    def _clear_watermark(self):
+        self._watermark = False
+        backend.WATERMARK_ENABLED = False
+        self._update_watermark_summary()
         self._save_config()
+
+    def _open_watermark_dialog(self):
+        dlg = WatermarkDialog(self._watermark_text, self._watermark_opacity,
+                              self._watermark_pos, self)
+        if dlg.exec() == QDialog.Accepted:
+            self._watermark_text = dlg.text
+            self._watermark_opacity = dlg.opacity
+            self._watermark_pos = dlg.position
+            self._watermark = True
+            backend.WATERMARK_ENABLED = True
+            backend.WATERMARK_TEXT = self._watermark_text
+            backend.WATERMARK_OPACITY = self._watermark_opacity
+            backend.WATERMARK_POSITION = self._watermark_pos
+            self._update_watermark_summary()
+            self._save_config()
 
     def _on_lossless_toggled(self, v):
         self._lossless = v
@@ -1187,6 +1950,13 @@ class VintedScraperGUI(QMainWindow):
         self._save_config()
 
     def _on_device_crop_toggled(self, v):
+        if v and self._crop_enabled:
+            if QMessageBox.Yes != QMessageBox.question(self, "裁剪切换",
+                    "已开启自定义裁剪，开启画幅匹配将清除自定义裁剪设置，是否继续？",
+                    QMessageBox.Yes | QMessageBox.No):
+                self.chk_device_crop.setChecked(False)
+                return
+            self._clear_crop()
         self._device_crop = v
         backend.DEVICE_CROP_ENABLED = v
         self._update_dots()
@@ -1196,6 +1966,82 @@ class VintedScraperGUI(QMainWindow):
         self._device_model = text
         backend.SELECTED_DEVICE = text
         self._save_config()
+
+    def _confirm_crop_if_needed(self, context="处理"):
+        if not backend.CUSTOM_CROP_ENABLED:
+            return True
+        parts = []
+        t, b, l, r = self._crop_top, self._crop_bottom, self._crop_left, self._crop_right
+        if t > 0: parts.append(f"上 {t}%")
+        if b > 0: parts.append(f"下 {b}%")
+        if l > 0: parts.append(f"左 {l}%")
+        if r > 0: parts.append(f"右 {r}%")
+        msg = f"已设置自定义裁剪：{'、'.join(parts)}\n\n{context}时将对所有图片应用此裁切，是否继续？"
+        return QMessageBox.Yes == QMessageBox.question(self, "裁剪确认", msg,
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+
+    def _clear_crop(self):
+        self._crop_top = 0; self._crop_bottom = 0
+        self._crop_left = 0; self._crop_right = 0
+        self._crop_enabled = False
+        backend.CUSTOM_CROP_ENABLED = False
+        backend.CROP_TOP_PCT = 0
+        backend.CROP_BOTTOM_PCT = 0
+        backend.CROP_LEFT_PCT = 0
+        backend.CROP_RIGHT_PCT = 0
+        self._update_crop_summary()
+        self._save_config()
+
+    def _update_crop_summary(self):
+        """更新裁剪状态行"""
+        t, b, l, r = self._crop_top, self._crop_bottom, self._crop_left, self._crop_right
+        if t == 0 and b == 0 and l == 0 and r == 0:
+            self._crop_status_widget.hide()
+            self.btn_custom_crop.setText("自定义裁剪 ▸")
+            self.btn_custom_crop.setStyleSheet("""
+                QPushButton { background: #f3f4f6; border: 1px solid #d1d5db;
+                border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #374151; }
+                QPushButton:hover { background: #e5e7eb; border-color: #9ca3af; }
+            """)
+        else:
+            parts = []
+            v = "<span style='color:#0d9488;font-weight:600;'>"
+            cv = "</span>"
+            if t > 0: parts.append(f"上 {v}{t}%{cv}")
+            if b > 0: parts.append(f"下 {v}{b}%{cv}")
+            if l > 0: parts.append(f"左 {v}{l}%{cv}")
+            if r > 0: parts.append(f"右 {v}{r}%{cv}")
+            self.lbl_crop_summary.setText("裁切：" + "  <span style='color:#d1d5db;'>|</span>  ".join(parts))
+            self._crop_status_widget.show()
+            self.btn_custom_crop.setText("自定义裁剪 ✓")
+            self.btn_custom_crop.setStyleSheet("""
+                QPushButton { background: #d1fae5; border: 1px solid #6ee7b7;
+                border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #065f46; }
+                QPushButton:hover { background: #a7f3d0; border-color: #34d399; }
+            """)
+
+    def _open_crop_dialog(self):
+        dlg = CropDialog(self._crop_top, self._crop_bottom, self._crop_left, self._crop_right, self)
+        if dlg.exec() == QDialog.Accepted:
+            new_top, new_bot, new_le, new_ri = dlg.values
+            new_enabled = any(v > 0 for v in dlg.values)
+            # 冲突检查：新裁剪与画幅匹配互斥
+            if new_enabled and self._device_crop:
+                if QMessageBox.Yes != QMessageBox.question(self, "裁剪切换",
+                        "已开启画幅匹配，应用自定义裁剪将关闭画幅匹配，是否继续？",
+                        QMessageBox.Yes | QMessageBox.No):
+                    return  # 放弃本次设置，保留原值
+                self.chk_device_crop.setChecked(False)
+            self._crop_top, self._crop_bottom = new_top, new_bot
+            self._crop_left, self._crop_right = new_le, new_ri
+            self._crop_enabled = new_enabled
+            backend.CUSTOM_CROP_ENABLED = new_enabled
+            backend.CROP_TOP_PCT = new_top
+            backend.CROP_BOTTOM_PCT = new_bot
+            backend.CROP_LEFT_PCT = new_le
+            backend.CROP_RIGHT_PCT = new_ri
+            self._update_crop_summary()
+            self._save_config()
 
     def _update_dots(self):
         for chk, dot in self._dots.items():
@@ -1239,6 +2085,8 @@ class VintedScraperGUI(QMainWindow):
         valid = [u for u in urls if "http" in u]
         if not valid:
             return QMessageBox.warning(self, "警告", "未检测到有效的商品链接！\n\n请确认链接格式正确")
+        if not self._confirm_crop_if_needed("在线采集"):
+            return
         save_path = self.entry_path.text().strip() or backend.DEFAULT_SAVE_ROOT
         if not os.path.exists(save_path):
             if QMessageBox.Yes != QMessageBox.question(self, "提示", f"目录不存在，是否创建？\n{save_path}"):
@@ -1249,6 +2097,7 @@ class VintedScraperGUI(QMainWindow):
         self._save_config()
 
         self._set_ui_running(True)
+        self._task_start_time = time.time()
         self.status_label.setText("处理中…")
         self._worker = CrawlWorker(text, False)
         self._worker.log_signal.connect(self._add_log)
@@ -1283,56 +2132,18 @@ class VintedScraperGUI(QMainWindow):
             self._update_stats_display()
 
         total, success, fail = backend.TOTAL_TASKS, backend.SUCCESS_COUNT, backend.FAIL_COUNT
-        # 处理清单
-        features = []
-        if backend.ADVANCED_ANTI_DETECT_ENABLED:
-            features.append("AI指纹重构")
-        if backend.DEEP_ANTI_DUPLICATE_ENABLED:
-            features.append(f"指纹深度重建")
-        if backend.COMPRESS_ENABLED:
-            features.append("智能画质")
-        if backend.LOSSLESS_ENABLED:
-            features.append("原画输出")
-        if backend.WATERMARK_ENABLED:
-            features.append("数字水印")
-        if backend.DEVICE_CROP_ENABLED:
-            features.append("机型匹配")
-        feat_str = "、".join(features) if features else "基础处理"
 
-        info = f"处理 {total} 个商品 · 采集 {_session_images} 张图片 · 成功 {success} · 失败 {fail}"
-        info += f"\n\n已应用：{feat_str}"
-        if fail > 0 and backend.FAIL_REASONS:
-            reasons = []
-            for url in backend.FAILED_URLS[-3:]:
-                r = backend.FAIL_REASONS.get(url, "未知错误")
-                short_url = url.split("?")[0].split("/")[-1] if "/" in url else url[-20:]
-                reasons.append(f"  {short_url}: {r}")
-            info += "\n\n失败项目：\n" + "\n".join(reasons)
+        if not stopped:
+            elapsed = time.time() - self._task_start_time if self._task_start_time else 0
+            stats = f"采集 {total} 个商品  ·  获取 {_session_images} 张  ·  ✅ {success}  ·  ❌ {fail}"
 
-        msg = QMessageBox(self)
-        msg.setWindowTitle(_tr("任务完成"))
-        msg.setIcon(QMessageBox.Information)
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.setDefaultButton(QMessageBox.Ok)
-        msg.setText(_tr(f"任务执行完毕"))
-        msg.setInformativeText(info)
-        msg.setStyleSheet("QMessageBox QLabel#qt_msgbox_informativelabel { font-size: 13px; }")
-        btn_open = msg.addButton(_tr("打开目录"), QMessageBox.ActionRole)
-        btn_preview = msg.addButton(_tr("预览对比"), QMessageBox.ActionRole)
-        btn_clear = msg.addButton(_tr("清空队列"), QMessageBox.ActionRole)
-        btn_export = None
-        if backend.FAILED_URLS:
-            btn_export = msg.addButton("导出失败项", QMessageBox.ActionRole)
-        msg.exec()
-        clicked = msg.clickedButton()
-        if clicked == btn_open:
-            self._open_save_dir()
-        elif clicked == btn_preview:
-            self._show_preview()
-        elif clicked == btn_clear:
-            self._clear_urls()
-        elif btn_export and clicked == btn_export:
-            self._export_failed_urls()
+            dlg = CompletionDialog(_tr("采集完成"), stats, elapsed,
+                                   self._last_output_dir, self)
+            dlg.exec()
+            if dlg.action == 'preview':
+                self._show_preview()
+            elif dlg.action == 'open':
+                self._open_save_dir()
 
     def _update_stats_display(self):
         self.stats_label.setText(f"累计 {self._total_tasks} 次采集 · {self._total_images} 张图像")
@@ -1360,11 +2171,13 @@ class VintedScraperGUI(QMainWindow):
         self.combo_city.setEnabled(not running)
         self.combo_mode.setEnabled(not running and self.combo_city.currentText() != "全国随机")
         self.chk_compress.setEnabled(not running)
-        self.chk_watermark.setEnabled(not running)
+        self.btn_watermark.setEnabled(not running)
         self.chk_lossless.setEnabled(not running)
         self.chk_advanced_anti_detect.setEnabled(not running)
         self.chk_device_crop.setEnabled(not running)
+        self.btn_custom_crop.setEnabled(not running)
         self.chk_deep_anti_duplicate.setEnabled(not running)
+        self.combo_variants.setEnabled(not running)
         self.combo_device.setEnabled(not running)
         self.btn_local.setEnabled(not running)
         self.btn_ai_bg.setEnabled(not running)
@@ -1440,6 +2253,8 @@ class VintedScraperGUI(QMainWindow):
             self._add_log("⚠️ 所选文件夹中没有图片文件", "warning")
 
     def _run_local_worker(self, paths):
+        if not self._confirm_crop_if_needed("本地处理"):
+            return
         import shutil as _shutil
         variants = backend.DEEP_MODE_VARIANTS if backend.DEEP_ANTI_DUPLICATE_ENABLED else 1
         backend.init_session_gps()
@@ -1474,6 +2289,7 @@ class VintedScraperGUI(QMainWindow):
             self._add_log(f"🖼 本地处理：{len(paths)} 张 → ×{variants} 版本 = 共 {len(expanded)} 次 → {out_dir}", "info")
         else:
             self._add_log(f"🖼 本地处理：{len(paths)} 张 → 共 {len(expanded)} 次 → {out_dir}", "info")
+        self._task_start_time = time.time()
         self._local_worker = LocalProcessWorker(expanded)
         self._local_worker.log_signal.connect(self._add_log)
         self._local_worker.progress_signal.connect(
@@ -1485,43 +2301,28 @@ class VintedScraperGUI(QMainWindow):
         self.status_label.setText("本地处理中...")
         self._local_worker.start()
 
-    def _on_local_finished(self, ok):
+    def _on_local_finished(self, ok, stopped=False):
         self._deep_copies = []
         self._local_worker = None
         self._set_ui_running(False)
         self.progress_bar.setMaximum(100)
         self.progress_bar.setValue(0)
-        self.status_label.setText(f"本地处理完成，成功 {ok} 张")
-        self._add_log(f"✅ 本地防重完成，成功 {ok} 张", "success")
+        if stopped:
+            self.status_label.setText(f"本地处理已停止，成功 {ok} 张")
+            self._add_log(f"⏹ 本地处理已停止，成功 {ok} 张", "warning")
+        else:
+            self.status_label.setText(f"本地处理完成，成功 {ok} 张")
+            self._add_log(f"✅ 本地防重完成，成功 {ok} 张", "success")
         if ok > 0:
-            # 功能摘要
-            features = []
-            if backend.ADVANCED_ANTI_DETECT_ENABLED:
-                features.append("AI指纹重构")
-            if backend.DEEP_ANTI_DUPLICATE_ENABLED:
-                v = backend.DEEP_MODE_VARIANTS
-                features.append(f"指纹深度重建(×{v})")
-            if backend.COMPRESS_ENABLED:
-                features.append("智能画质")
-            if backend.LOSSLESS_ENABLED:
-                features.append("原画输出")
-            if backend.WATERMARK_ENABLED:
-                features.append("数字水印")
-            if backend.DEVICE_CROP_ENABLED:
-                features.append("机型画幅匹配")
-            feat_str = "、".join(features) if features else "基础处理"
-            msg = QMessageBox(self)
-            msg.setWindowTitle("处理完成")
-            msg.setText(f"成功处理 {ok} 张图片")
-            msg.setInformativeText(f"已应用：{feat_str}")
-            msg.setStandardButtons(QMessageBox.Ok)
-            btn_open = msg.addButton(_tr("打开目录"), QMessageBox.ActionRole)
-            btn_preview = msg.addButton(_tr("预览对比"), QMessageBox.ActionRole)
-            msg.exec()
-            if msg.clickedButton() == btn_open:
-                self._open_save_dir()
-            elif msg.clickedButton() == btn_preview:
+            elapsed = time.time() - self._task_start_time if self._task_start_time else 0
+            stats = f"成功处理 {ok} 张图片"
+            dlg = CompletionDialog("处理完成", stats, elapsed,
+                                   self._last_output_dir, self)
+            dlg.exec()
+            if dlg.action == 'preview':
                 self._show_preview()
+            elif dlg.action == 'open':
+                self._open_save_dir()
 
     def _show_help(self):
         dlg = QDialog(self)
@@ -1548,6 +2349,10 @@ b { color:#e0e0e0; }
 .a { color:#888; margin-left:0; margin-bottom:4px; }
 .num { display:inline-block; background:#333; color:#ccc; width:20px; height:20px; border-radius:10px; text-align:center; line-height:20px; font-size:11px; margin-right:6px; }
 li { margin:2px 0; list-style:none; }
+.hl { color:#10b981; font-weight:600; }
+.warn { color:#f59e0b; font-weight:600; }
+.imp { color:#e0e0e0; font-weight:600; }
+.dim { color:#888; }
 </style>
 <h2>支持平台</h2>
 <li style='color:#10b981;'><b>Vinted</b> · 全欧  <b>Depop</b> · 英美  <b>VC</b> · 法德美  <b>Poshmark</b> · 美</li>
@@ -1555,7 +2360,7 @@ li { margin:2px 0; list-style:none; }
 
 <h2>使用步骤</h2>
 <li><span class=num>1</span> 粘贴商品链接，一行一个</li>
-<li><span class=num>2</span> 勾选需要的处理配置（推荐全开）</li>
+<li><span class=num>2</span> 根据需要开启处理配置（软件已<span class=hl>内置核心防检测</span>，普通用户无需调整）</li>
 <li><span class=num>3</span> 设置保存路径</li>
 <li><span class=num>4</span> 设置国家城市</li>
 <li><span class=num>5</span> 点击 <b>开始采集</b></li>
@@ -1568,17 +2373,34 @@ li { margin:2px 0; list-style:none; }
 <li>· 拍摄信息注入</li>
 <li style='color:#888;margin-bottom:8px;'>以下为可选增强功能：</li>
 <li><b>智能画质</b> &nbsp;智能优化图像体积，兼顾画质与上传速度</li>
-<li><b>原画输出</b> &nbsp;无损级保留全部图像细节，与智能画质互斥</li>
-<li><b>数字水印</b> &nbsp;嵌入不可见数字标识，可用于版权保护</li>
-<li><b>AI指纹重构</b> &nbsp;多维重建图像特征空间，推荐始终开启</li>
+<li><b>原画输出</b> &nbsp;<span class=warn>无损级保留全部图像细节，与智能画质互斥</span></li>
+<li><b>隐形水印</b> &nbsp;自定义文字和透明度，嵌入不可见标识，<span class=hl>开启后按钮变绿</span></li>
+<li><b>AI指纹重构</b> &nbsp;多维重建图像特征空间，<span class=hl>推荐始终开启</span></li>
 <li><b>指纹深度重建</b></li>
 <li style='color:#888;margin-left:16px;'>针对已上架过的图片重新处理场景，进一步增强图像指纹重建深度</li>
 <li style='color:#888;margin-left:16px;'>启用后输出图片将具备更强的平台识别规避能力</li>
-<li style='color:#888;margin-left:16px;'>建议场景：同一商品补图、旧图翻新再上架</li>
-<li style='color:#888;margin-left:16px;'>输出版本数设为 2-3，每张图生成多个指纹不同的副本</li>
+<li style='color:#888;margin-left:16px;'>建议场景：<span class=hl>同一商品补图、旧图翻新再上架</span></li>
+<li style='color:#888;margin-left:16px;'>输出版本数设为 <span class=hl>2-3</span>，每张图生成多个指纹不同的副本</li>
 <li style='color:#888;margin-left:16px;'>输出文件名末尾标记差异数值，数值越高表示与原图差异越大</li>
 <li><b>机型自定义</b> &nbsp;模拟指定设备成像特征，保持随机即可</li>
-<li style='color:#666;font-size:12px;margin-top:6px;'>提示：AI指纹重构和指纹深度重建涉及图像重编码，画质会有轻微下降，日常使用建议仅开启AI指纹重构即可</li>
+<li style='color:#f59e0b;font-size:12px;margin-top:6px;'>⚠ 提示：AI指纹重构和指纹深度重建涉及图像重编码，画质会有轻微下降，日常使用建议仅开启AI指纹重构即可</li>
+
+<li><b>隐形水印</b></li>
+<li style='color:#888;margin-left:16px;'>点击按钮打开设置，自定义水印文字、透明度（0-100%）和位置</li>
+<li style='color:#888;margin-left:16px;'>水印以极低透明度嵌入图片，肉眼不可见，不影响画质</li>
+<li style='color:#888;margin-left:16px;'>位置支持九宫格选择，随机位置可均匀分布到四角和中心</li>
+<li style='color:#888;margin-left:16px;'>建议场景：为图片添加唯一标识，增强防重效果</li>
+<li style='color:#888;margin-left:16px;'>开启后按钮变绿，状态行显示当前水印配置</li>
+<li style='color:#f59e0b;font-size:12px;margin-left:16px;'>⚠ 透明度越低水印越隐蔽，建议 <span class=hl>1%-5%</span>；透明度 0 时水印不可见</li>
+
+<li><b>自定义裁剪</b></li>
+<li style='color:#888;margin-left:16px;'>点击按钮打开裁剪设置，通过<span class=imp>上下左右四个滑块</span>按百分比裁切图片</li>
+<li style='color:#888;margin-left:16px;'>参考画幅选择原图大致比例，示意图会自适应变化</li>
+<li style='color:#888;margin-left:16px;'>快捷预设：<span class=hl>去底部水印、去状态栏、上下电影框</span>，一键填入</li>
+<li style='color:#888;margin-left:16px;'>目标比例：选择 <span class=hl>1:1 / 4:5 / 9:16</span> 等，自动计算所需裁切百分比</li>
+<li style='color:#888;margin-left:16px;'>开启后按钮变绿，状态行显示详细裁切参数，可<span class=hl>一键清除</span></li>
+<li style='color:#f59e0b;font-size:12px;margin-left:16px;'>⚠ 自定义裁剪与画幅匹配互斥，开启一个会自动关闭另一个</li>
+<li style='color:#f59e0b;font-size:12px;margin-left:16px;'>⚠ 处理前会弹出确认提示，避免误操作</li>
 
 <h2>本地处理</h2>
 <li>拖入图片或文件夹到窗口，或点击 <b>本地处理</b> 选择</li>
@@ -1597,7 +2419,7 @@ li { margin:2px 0; list-style:none; }
 <div class=q>Q: 提示未检测到有效链接？</div>
 <div class=a>A: 请检查链接格式是否正确。</div>
 <div class=q>Q: 处理后图片看起来一样？</div>
-<div class=a>A: 肉眼一样但数字指纹已完全重建。</div>
+<div class=a>A: 肉眼一样但<span class=hl>数字指纹已完全重建</span>，防重效果已生效。</div>
 <div class=q>Q: 提示授权已过期？</div>
 <div class=a>A: 联系管理员续期，获取新激活码重新激活。</div>
 <div class=q>Q: 软件闪退或报错？</div>
@@ -2236,6 +3058,9 @@ li { margin:2px 0; list-style:none; }
             super().keyPressEvent(event)
 
     def _save_geometry(self):
+        # 强制刷新 pending 的路径保存，避免关闭窗口时丢失
+        if self._path_save_timer.isActive():
+            self._do_save_path()
         r = self.geometry()
         cfg = backend.load_config()
         cfg["window_geometry"] = f"{r.width()}x{r.height()}+{r.x()}+{r.y()}"

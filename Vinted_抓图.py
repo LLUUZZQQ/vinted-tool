@@ -45,6 +45,7 @@ COMPRESS_QUALITY_RANGE = (95, 98)
 # 隐形水印
 WATERMARK_TEXT = "VINTED"
 WATERMARK_OPACITY = 1
+WATERMARK_POSITION = "随机"  # 随机 / 左上 / 右上 / 左下 / 右下
 # JPEG 重编码防重（频域级，95+ 肉眼无差异）
 JPEG_QUALITY_RANGE = (95, 98)
 SUBSAMPLING_OPTIONS = ["4:2:0", "4:2:2", "4:4:4"]
@@ -163,6 +164,11 @@ WATERMARK_ENABLED = False
 LOSSLESS_ENABLED = False  # 无损画质模式：quality=100 + 4:4:4
 ADVANCED_ANTI_DETECT_ENABLED = False  # 高级防检测：JPEG块破坏 + 空间噪声 + 空变亮度
 DEVICE_CROP_ENABLED = False  # 机模画幅匹配：裁切到随机设备原生比例
+CUSTOM_CROP_ENABLED = False  # 自定义裁剪
+CROP_TOP_PCT = 0             # 上边裁切百分比 0-50
+CROP_BOTTOM_PCT = 0          # 下边
+CROP_LEFT_PCT = 0            # 左边
+CROP_RIGHT_PCT = 0           # 右边
 
 # 深度防重处理模式（针对平台重复检测）
 DEEP_ANTI_DUPLICATE_ENABLED = False  # 深度防重：透视变换 + 镜头畸变 + 参数增强
@@ -197,7 +203,7 @@ def load_config():
         try:
             config.read(CONFIG_FILE, encoding="utf-8")
             return config["SETTINGS"] if "SETTINGS" in config else {}
-        except:
+        except Exception:
             return {}
     return {}
 
@@ -280,6 +286,29 @@ def _get_device_ratio(device):
         if c in device:
             return (3, 2)
     return (4, 3)
+
+
+def _custom_crop_pct(img, top_pct, bottom_pct, left_pct, right_pct):
+    """按四边百分比裁切图片。每个边 0-50%，合计不超过 95%。"""
+    if top_pct == 0 and bottom_pct == 0 and left_pct == 0 and right_pct == 0:
+        return img
+    ow, oh = img.size
+    # 限制合计不超过 95%
+    if top_pct + bottom_pct > 95:
+        scale = 95 / (top_pct + bottom_pct)
+        top_pct = top_pct * scale
+        bottom_pct = bottom_pct * scale
+    if left_pct + right_pct > 95:
+        scale = 95 / (left_pct + right_pct)
+        left_pct = left_pct * scale
+        right_pct = right_pct * scale
+    top = int(oh * top_pct / 100)
+    bottom = int(oh * bottom_pct / 100)
+    left = int(ow * left_pct / 100)
+    right = int(ow * right_pct / 100)
+    if oh - top - bottom <= 0 or ow - left - right <= 0:
+        return img
+    return img.crop((left, top, ow - right, oh - bottom))
 
 DEVICE_INFO_MAP = {
     # Apple
@@ -843,10 +872,35 @@ def process_image(image_path, skip_gps=False):
                 font_size = max(int(original_width / 20), 12)
                 try:
                     font = ImageFont.truetype("arial.ttf", font_size)
-                except:
+                except Exception:
                     font = ImageFont.load_default()
-                pos_x = random.choice([10, original_width - font_size * len(WATERMARK_TEXT) - 10])
-                pos_y = random.choice([10, original_height - font_size - 10])
+                cx = (original_width - font_size * len(WATERMARK_TEXT)) // 2
+                cy = (original_height - font_size) // 2
+                rx = original_width - font_size * len(WATERMARK_TEXT) - 10
+                by = original_height - font_size - 10
+                if WATERMARK_POSITION == "随机":
+                    pos_x = random.choice([10, cx, rx])
+                    pos_y = random.choice([10, cy, by])
+                elif WATERMARK_POSITION == "左上":
+                    pos_x = 10; pos_y = 10
+                elif WATERMARK_POSITION == "中上":
+                    pos_x = cx; pos_y = 10
+                elif WATERMARK_POSITION == "右上":
+                    pos_x = rx; pos_y = 10
+                elif WATERMARK_POSITION == "左中":
+                    pos_x = 10; pos_y = cy
+                elif WATERMARK_POSITION == "居中":
+                    pos_x = cx; pos_y = cy
+                elif WATERMARK_POSITION == "右中":
+                    pos_x = rx; pos_y = cy
+                elif WATERMARK_POSITION == "左下":
+                    pos_x = 10; pos_y = by
+                elif WATERMARK_POSITION == "中下":
+                    pos_x = cx; pos_y = by
+                elif WATERMARK_POSITION == "右下":
+                    pos_x = rx; pos_y = by
+                else:
+                    pos_x = 10; pos_y = 10
                 draw.text((pos_x, pos_y), WATERMARK_TEXT, font=font,
                           fill=(255, 255, 255, WATERMARK_OPACITY))
                 img = Image.alpha_composite(img.convert("RGBA"), watermark).convert("RGB")
@@ -964,6 +1018,10 @@ def process_image(image_path, skip_gps=False):
                             trim //= 2
                             img = img.crop((0, trim, ow, oh - trim))
 
+        # 自定义裁剪：按用户设定的四边百分比裁切
+        if CUSTOM_CROP_ENABLED and not skip_gps:
+            img = _custom_crop_pct(img, CROP_TOP_PCT, CROP_BOTTOM_PCT, CROP_LEFT_PCT, CROP_RIGHT_PCT)
+
         # EXIF 缩略图 + dump（置於機模裁切之後，確保縮略圖與主圖一致）
         exif_bytes = b""
         if not skip_gps:
@@ -1033,7 +1091,7 @@ def process_image(image_path, skip_gps=False):
                 _score = int(np.abs(_os - _ds).mean() * 100 / 255)
                 _orig.close()
                 _out.close()
-            except:
+            except Exception:
                 pass
 
         orig_base = os.path.splitext(os.path.basename(image_path))[0]
@@ -1059,7 +1117,7 @@ def process_image(image_path, skip_gps=False):
         if img:
             try:
                 img.close()
-            except:
+            except Exception:
                 pass
         return False
 
@@ -1278,7 +1336,7 @@ def _download_single_image(args):
         session.close()
         write_log(f"❌ 第{img_idx + 1}张最终下载失败", "error")
         return False
-    except:
+    except Exception:
         return False
     finally:
         session.close()
@@ -1316,7 +1374,7 @@ def scrape_vinted_by_browser(url, save_folder, debug_mode, driver=None, wait_tim
                 body = driver.execute_script(
                     "return (document.body?.innerText || '').substring(0, 200)"
                 ).lower()
-            except:
+            except Exception:
                 body = ""
             if "we're experiencing some technical issues" in body:
                 write_log(f"⚠️ Server Error，立即重试（第{page_retry+1}/3次）", "warning")
@@ -1335,7 +1393,7 @@ def scrape_vinted_by_browser(url, save_folder, debug_mode, driver=None, wait_tim
                     ))
                 )
                 break
-            except:
+            except Exception:
                 write_log(f"⚠️ 第{page_retry+1}次未找到商品容器", "warning")
                 sleep(1)
 
@@ -1373,7 +1431,7 @@ def scrape_vinted_by_browser(url, save_folder, debug_mode, driver=None, wait_tim
                     clicked = True
                     sleep(1)
                     break
-                except:
+                except Exception:
                     continue
             if not clicked:
                 break
@@ -1409,7 +1467,7 @@ def scrape_vinted_by_browser(url, save_folder, debug_mode, driver=None, wait_tim
                             "Referer": url, "Cookie": page_cookie,
                         }, timeout=3).status_code == 200:
                             best = cand; break
-                    except: pass
+                    except Exception: pass
                 return best
 
             upgraded = []
@@ -1460,9 +1518,13 @@ def scrape_vinted_by_browser(url, save_folder, debug_mode, driver=None, wait_tim
         write_log(f"❌ 商品抓取失败 | {url} | {e}", "error")
         FAILED_URLS.append(url)
         FAIL_REASONS[url] = str(e)[:80]
-        if driver and own_driver:
-            driver.quit()
         return False
+    finally:
+        if driver and own_driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
 
 
 def _cleanup_old_logs(save_root, days=3):
@@ -1476,7 +1538,7 @@ def _cleanup_old_logs(save_root, days=3):
                 fp = os.path.join(save_root, f)
                 if os.path.getmtime(fp) < cutoff:
                     os.remove(fp)
-    except:
+    except Exception:
         pass
 
 
@@ -1497,10 +1559,13 @@ def _download_batch(img_urls, save_folder, download_headers, session=None):
 
 
 def _download_depop_image(args):
-    """用共享 requests session 下载单张 Depop 图片"""
-    img_url, save_folder, download_headers, session, img_idx = args
+    """下载单张图片（每次创建独立 session，线程安全）"""
+    img_url, save_folder, download_headers, cookies, img_idx = args
     if not _verify_license_quick():
         return False
+    session = requests.Session()
+    for c in (cookies or []):
+        session.cookies.set(c['name'], c['value'], domain=c.get('domain', ''))
     try:
         for retry in range(3):
             if STOP_TASK:
@@ -1536,8 +1601,10 @@ def _download_depop_image(args):
                 sleep(1)
         write_log(f"❌ 第{img_idx + 1}张最终下载失败", "error")
         return False
-    except:
+    except Exception:
         return False
+    finally:
+        session.close()
 
 
 def scrape_depop_by_browser(url, save_folder, debug_mode, driver=None):
@@ -1568,7 +1635,7 @@ def scrape_depop_by_browser(url, save_folder, debug_mode, driver=None):
                 body = driver.execute_script(
                     "return (document.body?.innerText || '').substring(0, 300)"
                 ).lower()
-            except:
+            except Exception:
                 body = ""
             # Depop 错误页检测
             if "something went wrong" in body or "page not found" in body:
@@ -1582,7 +1649,7 @@ def scrape_depop_by_browser(url, save_folder, debug_mode, driver=None):
                         "img[src*='media-photos.depop.com']"))
                 )
                 break
-            except:
+            except Exception:
                 write_log(f"⚠️ 第{page_retry+1}次未找到图片容器", "warning")
                 sleep(1)
 
@@ -1638,12 +1705,7 @@ def scrape_depop_by_browser(url, save_folder, debug_mode, driver=None):
         img_urls = final_urls
         write_log(f"✅ 提取到 {len(img_urls)} 张 Depop 商品图片", "success")
 
-        # 用 requests + 浏览器 cookie jar 下载（比裸 Cookie 头可靠）
-        import requests as _requests
-        import json as _json
-        s = _requests.Session()
-        for c in cookies:
-            s.cookies.set(c['name'], c['value'], domain=c.get('domain', ''))
+        # 用 requests 下载（每线程独立 session，线程安全）
         download_headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Referer": url,
@@ -1652,7 +1714,7 @@ def scrape_depop_by_browser(url, save_folder, debug_mode, driver=None):
         }
         from concurrent.futures import ThreadPoolExecutor, as_completed
         results = []
-        download_args = [(u, save_folder, download_headers, s, i)
+        download_args = [(u, save_folder, download_headers, cookies, i)
                          for i, u in enumerate(img_urls)]
         with ThreadPoolExecutor(max_workers=min(DOWNLOAD_WORKERS, len(img_urls))) as executor:
             futures = {executor.submit(_download_depop_image, arg): arg
@@ -1676,7 +1738,7 @@ def scrape_depop_by_browser(url, save_folder, debug_mode, driver=None):
         if own_driver and driver:
             try:
                 driver.quit()
-            except:
+            except Exception:
                 pass
 
 
@@ -1780,7 +1842,7 @@ def scrape_vc_by_browser(url, save_folder, debug_mode, driver=None):
         if own_driver and driver:
             try:
                 driver.quit()
-            except:
+            except Exception:
                 pass
 
 
@@ -1879,7 +1941,7 @@ def scrape_poshmark_by_browser(url, save_folder, debug_mode, driver=None):
         if own_driver and driver:
             try:
                 driver.quit()
-            except:
+            except Exception:
                 pass
 
 
@@ -1979,7 +2041,7 @@ def scrape_grailed_by_browser(url, save_folder, debug_mode, driver=None):
         if own_driver and driver:
             try:
                 driver.quit()
-            except:
+            except Exception:
                 pass
 
 
@@ -2023,7 +2085,7 @@ def scrape_mercari_by_browser(url, save_folder, debug_mode, driver=None):
                     elif isinstance(imgs, str):
                         img_urls = [imgs]
                     break
-            except: pass
+            except Exception: pass
 
         if not img_urls:
             write_log("❌ 未提取到 Mercari 商品图片", "error")
@@ -2077,7 +2139,7 @@ def scrape_mercari_by_browser(url, save_folder, debug_mode, driver=None):
         if own_driver and driver:
             try:
                 driver.quit()
-            except:
+            except Exception:
                 pass
 
 
@@ -2144,11 +2206,7 @@ def scrape_wallapop_by_browser(url, save_folder, debug_mode, driver=None):
         img_urls = final_urls
         write_log("✅ 提取到 {} 张 Wallapop 商品图片".format(len(img_urls)), "success")
 
-        # 用浏览器 cookie session 下载
-        import requests as _rq
-        s = _rq.Session()
-        for c in cookies:
-            s.cookies.set(c['name'], c['value'], domain=c.get('domain', ''))
+        # 用浏览器 cookie 下载（每线程独立 session，线程安全）
         download_headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Referer": url,
@@ -2156,7 +2214,7 @@ def scrape_wallapop_by_browser(url, save_folder, debug_mode, driver=None):
         }
         from concurrent.futures import ThreadPoolExecutor, as_completed
         results = []
-        download_args = [(u, save_folder, download_headers, s, i)
+        download_args = [(u, save_folder, download_headers, cookies, i)
                          for i, u in enumerate(img_urls)]
         with ThreadPoolExecutor(max_workers=min(DOWNLOAD_WORKERS, len(img_urls))) as executor:
             futures = {executor.submit(_download_depop_image, arg): arg
@@ -2179,7 +2237,7 @@ def scrape_wallapop_by_browser(url, save_folder, debug_mode, driver=None):
         if own_driver and driver:
             try:
                 driver.quit()
-            except:
+            except Exception:
                 pass
 
 
@@ -2292,7 +2350,7 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
             try:
                 shared_driver.quit()
                 write_log("Chrome 浏览器已关闭", "info")
-            except:
+            except Exception:
                 pass
 
     elapsed = round(_time.time() - _start, 1)
@@ -2342,7 +2400,7 @@ def open_save_dir(save_root=None):
             os.startfile(save_path)
             write_log(f"✅ 已打开图片目录", "success")
             return True, ""
-        except:
+        except Exception:
             return False, f"打开目录失败：{str(e)}"
 
 

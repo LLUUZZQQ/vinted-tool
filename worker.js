@@ -49,7 +49,7 @@ export default {
       if (request.method === "POST") {
         const add = parseInt(url.searchParams.get("add") || "0");
         const secret = url.searchParams.get("secret") || "";
-        if (secret !== (env.ADMIN_SECRET || "vtmax_admin_2026")) return new Response("Unauthorized", { status: 403 });
+        if (!env.ADMIN_SECRET || secret !== env.ADMIN_SECRET) return new Response("Unauthorized", { status: 403 });
         const key = `credits_${hwid}`;
         const current = parseInt(await env.VTMAX_CREDITS.get(key) || "0");
         await env.VTMAX_CREDITS.put(key, String(current + add));

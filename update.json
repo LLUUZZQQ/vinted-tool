@@ -1,1 +1,1 @@
-{"version":"3.5.9","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.5.9/ImageMAX.exe","changelog":"修复本地处理时配置开关仍可切换的问题，处理体验更稳定。"}
+{"version":"3.6.0","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.6.0/ImageMAX.exe","changelog":"新增自定义裁剪（四边百分比+目标比例+实时预览）、隐形水印自定义（文字/透明度/九宫格位置）、处理完成EXIF信息面板、多项安全修复与体验优化。"}
