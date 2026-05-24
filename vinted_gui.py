@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1055,7 +1055,7 @@ class CompletionDialog(QDialog):
     def __init__(self, title, stats, seconds, out_dir, parent=None):
         super().__init__(parent)
         self.setWindowTitle(title)
-        self.setFixedSize(430, 530)
+        self.setFixedSize(430, 550)
         self.setStyleSheet("QDialog { background: #ffffff; }")
         self._stats = stats
         self._seconds = seconds
@@ -1136,20 +1136,20 @@ class CompletionDialog(QDialog):
 
         root.addWidget(gb)
 
-        # ── 防检测处理 ──
+        # ── 防检测处理标签 ──
         features = []
         if be.ADVANCED_ANTI_DETECT_ENABLED:
-            features.append("🧠 AI指纹重构")
+            features.append(("🧠", "AI指纹重构"))
         if be.DEEP_ANTI_DUPLICATE_ENABLED:
-            features.append(f"🔬 指纹深度重建(×{be.DEEP_MODE_VARIANTS})")
+            features.append(("🔬", f"指纹深度重建×{be.DEEP_MODE_VARIANTS}"))
         if be.COMPRESS_ENABLED:
-            features.append("🖼 智能画质")
+            features.append(("🖼", "智能画质"))
         if be.LOSSLESS_ENABLED:
-            features.append("📦 原画输出")
+            features.append(("📦", "原画输出"))
         if be.WATERMARK_ENABLED:
-            features.append(f"🔏 {be.WATERMARK_TEXT} {be.WATERMARK_OPACITY}%")
+            features.append(("🔏", f"{be.WATERMARK_TEXT} {be.WATERMARK_OPACITY}% {be.WATERMARK_POSITION}"))
         if be.DEVICE_CROP_ENABLED:
-            features.append("📐 画幅匹配")
+            features.append(("📐", "画幅匹配"))
         if be.CUSTOM_CROP_ENABLED:
             parts = []
             t, b, l, r = be.CROP_TOP_PCT, be.CROP_BOTTOM_PCT, be.CROP_LEFT_PCT, be.CROP_RIGHT_PCT
@@ -1157,14 +1157,46 @@ class CompletionDialog(QDialog):
             if b: parts.append(f"下{b}%")
             if l: parts.append(f"左{l}%")
             if r: parts.append(f"右{r}%")
-            features.append(f"✂ 裁剪 {' '.join(parts)}" if parts else "✂ 自定义裁剪")
+            features.append(("✂", f"裁切 {' '.join(parts)}" if parts else "自定义裁剪"))
 
         if features:
-            feat_lbl = QLabel(f"<span style='font-size:12px;color:#6b7280;'>已启用：</span>"
-                              f"<span style='font-size:12px;color:#374151;'>{'  '.join(features)}</span>")
-            feat_lbl.setTextFormat(Qt.RichText)
-            feat_lbl.setWordWrap(True)
-            root.addWidget(feat_lbl)
+            hdr = QLabel("已启用的处理功能")
+            hdr.setStyleSheet("font-size:12px; font-weight:bold; color:#374151; background:transparent; padding-bottom:4px;")
+            root.addWidget(hdr)
+            # 胶囊徽章容器（手动换行）
+            pill_frame = QWidget()
+            pill_frame.setStyleSheet("background:transparent;")
+            pill_lo = QVBoxLayout(pill_frame)
+            pill_lo.setContentsMargins(0, 0, 0, 0)
+            pill_lo.setSpacing(4)
+            row = QHBoxLayout()
+            row.setSpacing(6)
+            row.setContentsMargins(0, 0, 0, 0)
+            row_width = 0
+            max_width = 370  # 对话框宽 430 - 边距
+            for icon, text in features:
+                pill_text = f"{icon} {text}"
+                pill = QLabel(pill_text)
+                pill.setStyleSheet("""
+                    QLabel { background:#d1fae5; border:1px solid #6ee7b7;
+                    border-radius:6px; padding:3px 10px; font-size:12px;
+                    color:#065f46; }
+                """)
+                pill.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+                pill.adjustSize()
+                pw = pill.sizeHint().width()
+                if row_width + pw > max_width and row_width > 0:
+                    row.addStretch()
+                    pill_lo.addLayout(row)
+                    row = QHBoxLayout()
+                    row.setSpacing(6)
+                    row.setContentsMargins(0, 0, 0, 0)
+                    row_width = 0
+                row.addWidget(pill)
+                row_width += pw + 6
+            row.addStretch()
+            pill_lo.addLayout(row)
+            root.addWidget(pill_frame)
 
         # ── 输出路径 ──
         if self._out_dir:
