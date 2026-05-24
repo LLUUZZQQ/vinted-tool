@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -3058,8 +3058,11 @@ li { margin:2px 0; list-style:none; }
             wait_dlg.close()
             self._update_thread = None
             if not exe:
-                self._add_log("更新下载失败", "error")
-                QMessageBox.critical(self, "更新失败", "下载失败，请稍后重试。")
+                self._add_log(f"更新下载失败：{update_checker._last_error}", "error")
+                QMessageBox.critical(self, "更新失败",
+                    f"下载失败，请检查网络连接后重试。\n\n"
+                    f"若多次失败，可前往官网手动下载：\n"
+                    f"https://github.com/LLUUZZQQ/vinted-tool/releases")
                 return
             self._add_log("正在应用更新...", "info")
             update_checker.apply_update(exe)

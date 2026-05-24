@@ -16,7 +16,8 @@ import subprocess
 UPDATE_URL = "https://vt-proxy.vtmax.workers.dev/update.json"
 
 # 当前版本
-CURRENT_VERSION = "3.6.8"
+CURRENT_VERSION = "3.6.9"
+_last_error = ""  # 最近一次下载错误信息
 
 
 def _fetch_json(url, timeout=10):
@@ -88,6 +89,8 @@ def download_update(download_url, progress_callback=None):
                 return None
         return tmp_path
     except Exception as e:
+        global _last_error
+        _last_error = str(e)[:200]
         if os.path.exists(tmp_path):
             try:
                 os.remove(tmp_path)
