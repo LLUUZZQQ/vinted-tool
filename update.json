@@ -1,1 +1,1 @@
-{"version":"3.6.2","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.6.2/ImageMAX.exe","changelog":"安全加固：Worker速率限制+图片验证+AES随机nonce+密钥Header传递；更新下载重试保护+路径转义；多项稳健性修复。"}
+{"version":"3.6.3","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.6.3/ImageMAX.exe","changelog":"许可证兼容性修复+安全加固+LUT+稳健性提升。"}

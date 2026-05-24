@@ -130,17 +130,24 @@ def _encrypt_license(data_dict, hwid_raw):
 
 
 def _decrypt_license(hwid_raw):
-    """读取并解密 license.dat，失败返回 None"""
+    """读取并解密 license.dat，失败返回 None。兼容新旧两种格式。"""
     if not os.path.exists(_LICENSE_PATH):
         return None
     try:
         with open(_LICENSE_PATH, "rb") as f:
             data = f.read()
-        if len(data) < 12:
-            return None
-        nonce, ciphertext = data[:12], data[12:]
         aesgcm = AESGCM(_derive_aes_key(hwid_raw))
-        plaintext = aesgcm.decrypt(nonce, ciphertext, None)
+        # 尝试 v2 格式（12 字节随机 nonce + ciphertext）
+        if len(data) >= 12:
+            try:
+                nonce, ciphertext = data[:12], data[12:]
+                plaintext = aesgcm.decrypt(nonce, ciphertext, None)
+                return json.loads(plaintext.decode("utf-8"))
+            except Exception:
+                pass
+        # 回退 v1 格式（确定性 nonce，全文件即为 ciphertext）
+        nonce = hashlib.sha256(b"vinted_scraper_v3_2026" + hwid_raw.encode("utf-8")).digest()[:12]
+        plaintext = aesgcm.decrypt(nonce, data, None)
         return json.loads(plaintext.decode("utf-8"))
     except Exception:
         return None
