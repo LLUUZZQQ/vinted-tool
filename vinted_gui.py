@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1217,6 +1217,8 @@ class VintedScraperGUI(QMainWindow):
         self._worker = None
         self._local_worker = None
         self._task_start_time = 0
+        self._status_row_height = 0
+        self._base_height = 0  # 无状态行时的窗口高度
         self._geo_setting_up = False
 
         self.setWindowTitle(f"图像重构MAX v{update_checker.CURRENT_VERSION} · 已就绪")
@@ -1610,6 +1612,7 @@ class VintedScraperGUI(QMainWindow):
         lo.addWidget(self._status_widget)
 
         parent.addWidget(g)
+        self._settings_group = g
 
     # ---- 模块 3：任务操作 ----
     def _build_task_section(self, parent):
@@ -1997,16 +2000,38 @@ class VintedScraperGUI(QMainWindow):
         self._save_config()
 
     def _update_status_row(self):
-        """根据裁剪/水印状态显示或隐藏合并状态行"""
+        """显示/隐藏状态行，并动态拉伸/恢复窗口高度"""
         crop_on = any([self._crop_top, self._crop_bottom, self._crop_left, self._crop_right])
         wm_on = self._watermark
+        was_visible = not self._status_widget.isHidden()
         self._crop_status_group.setVisible(crop_on)
         self._watermark_status_group.setVisible(wm_on)
         self._status_sep.setVisible(crop_on and wm_on)
-        if crop_on or wm_on:
+        is_visible = crop_on or wm_on
+        if is_visible:
             self._status_widget.show()
         else:
             self._status_widget.hide()
+        if is_visible != was_visible:
+            if self._base_height == 0:
+                self._base_height = self.height()
+            # 获取状态行实际高度（初次可能为0，用估算值）
+            sh = self._status_widget.sizeHint().height()
+            if sh < 10:
+                sh = 22  # 初始估算高度
+            else:
+                sh += 6  # 上下边距
+            if is_visible:
+                self._status_row_height = sh
+                new_h = self.height() + sh
+            else:
+                new_h = self.height() - self._status_row_height
+                self._status_row_height = 0
+            self.resize(self.width(), new_h)
+            if RELEASE_MODE:
+                self.setMaximumHeight(new_h)
+            if self._base_height == 0:
+                self._base_height = new_h
 
     def _update_crop_summary(self):
         """更新裁剪状态"""
