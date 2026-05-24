@@ -5,7 +5,7 @@ const DL = `https://github.com/${REPO}/releases/download`;
 const AI_MODEL = "google/gemini-2.5-flash-image";
 
 // 最新版本信息（发布时更新此处）
-const LATEST_VERSION = "3.6.11";
+const LATEST_VERSION = "3.6.12";
 const LATEST_CHANGELOG = `新增自定义裁剪与隐形水印功能
 
 自定义裁剪 — 四边百分比滑块灵活裁切、一键目标比例、快捷键预设、实时示意图预览

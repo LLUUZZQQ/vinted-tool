@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1098,26 +1098,30 @@ class CompletionDialog(QDialog):
         "莱顿":"Leiden","代尔夫特":"Delft","马斯特里赫特":"Maastricht","里斯本":"Lisbon",
         "波尔图":"Porto","科英布拉":"Coimbra","布拉加":"Braga","法鲁":"Faro","阿威罗":"Aveiro",
         "塞图巴尔":"Setubal","丰沙尔":"Funchal","埃武拉":"Evora",
-        # 剩余小城市用拼音/英文翻译
-        "布鲁日":"Bruges","圣塞巴斯蒂安":"San Sebastian","塔拉戈纳":"Tarragona",
-        "阿伯丁":"Aberdeen","普利茅斯":"Plymouth","巴勒莫":"Palermo",
-        "威尼斯梅斯特雷":"Venice Mestre","圣雷莫":"Sanremo","的里雅斯特":"Trieste",
-        "锡耶纳":"Siena","卡普里":"Capri","波西塔诺":"Positano",
-        "吕德斯海姆":"Rudesheim","巴登巴登":"Baden-Baden","维尔茨堡":"Wurzburg",
-        "特里尔":"Trier","康斯坦茨":"Konstanz","菲森":"Fussen",
-        "萨尔布吕肯":"Saarbrucken","乌尔姆":"Ulm","雷根斯堡":"Regensburg",
-        "根特":"Ghent","那慕尔":"Namur","安特卫普":"Antwerp",
-        "埃施":"Esch","迪基希":"Diekirch","菲安登":"Vianden",
-        "戈尔韦市":"Galway City","基拉尼":"Killarney","科布":"Cobh",
-        "莫纳汉":"Monaghan","卡洛":"Carlow","阿斯隆":"Athlone",
-        "扎科帕内":"Zakopane","索波特":"Sopot","马尔堡":"Malbork",
-        "卢布林":"Lublin","扎莫希奇":"Zamosc","普热梅希尔":"Przemysl",
-        "迈阿密海滩":"Miami Beach","圣何塞":"San Jose","波特兰":"Portland",
-        "圣莫尼卡":"Santa Monica","棕榈泉":"Palm Springs",
-        "克拉斯诺达尔":"Krasnodar","摩尔曼斯克":"Murmansk","伊尔库茨克":"Irkutsk",
-        "海参崴":"Vladivostok","车里雅宾斯克":"Chelyabinsk",
-        "蒂尔堡":"Tilburg","奈梅亨":"Nijmegen","布雷达":"Breda",
-        "阿尔布费拉":"Albufeira","卡斯卡伊斯":"Cascais","拉各斯":"Lagos",
+        # 西班牙
+        "维哥":"Vigo","潘普洛纳":"Pamplona",
+        # 英国
+        "布里斯托尔":"Bristol","南安普敦":"Southampton","考文垂":"Coventry","赫尔":"Hull",
+        # 意大利
+        "莫代纳":"Modena","帕尔马":"Parma","佩鲁贾":"Perugia",
+        # 德国
+        "杜伊斯堡":"Duisburg","卡尔斯鲁厄":"Karlsruhe",
+        # 卢森堡
+        "埃希特纳赫":"Echternach","格雷文马赫":"Grevenmacher",
+        # 爱尔兰
+        "邓多克":"Dundalk",
+        # 波兰
+        "琴斯特霍瓦":"Czestochowa",
+        # 美国
+        "达拉斯":"Dallas",
+        # 俄罗斯
+        "萨马拉":"Samara","顿河畔罗斯托夫":"Rostov-on-Don",
+        # 荷兰
+        "蒂尔堡":"Tilburg","奈梅亨":"Nijmegen",
+        # 葡萄牙
+        "维塞乌":"Viseu",
+        # 已覆盖但未匹配的补充
+        "普利茅斯":"Plymouth","菲安登":"Vianden","车里雅宾斯克":"Chelyabinsk","迪基希":"Diekirch",
     }
 
     def __init__(self, title, stats, seconds, out_dir, parent=None):
