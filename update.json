@@ -1,1 +1,1 @@
-{"version":"3.6.8","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.6.8/ImageMAX.exe","changelog":"新增自定义裁剪与隐形水印功能，支持灵活裁切和个性化水印设置。全面优化稳定性与异常容错，使用更流畅。"}
+{"version":"3.6.8","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.6.8/ImageMAX.exe","changelog":"新增自定义裁剪与隐形水印功能\n\n自定义裁剪 — 四边百分比滑块灵活裁切、一键目标比例、快捷键预设、实时示意图预览\n\n隐形水印 — 自定义文字/透明度/位置、九宫格精准定位、开启状态一目了然\n\n稳定性优化 — 异常容错全面加固，权限不足/磁盘满等场景不再崩溃"}
