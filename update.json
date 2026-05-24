@@ -1,1 +1,1 @@
-{"version":"3.6.0","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.6.0/ImageMAX.exe","changelog":"新增自定义裁剪（四边百分比+目标比例+实时预览）、隐形水印自定义（文字/透明度/九宫格位置）、处理完成EXIF信息面板、多项安全修复与体验优化。"}
+{"version":"3.6.1","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.6.1/ImageMAX.exe","changelog":"状态行合并优化、窗口高度增加、布局不重叠。自定义裁剪+隐形水印+EXIF面板+安全修复。"}

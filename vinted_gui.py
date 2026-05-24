@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1225,12 +1225,12 @@ class VintedScraperGUI(QMainWindow):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         if RELEASE_MODE:
-            self.setMinimumSize(520, 620)
-            self.setMaximumHeight(620)
-            self.resize(580, 620)
+            self.setMinimumSize(520, 650)
+            self.setMaximumHeight(650)
+            self.resize(580, 650)
         else:
-            self.setMinimumSize(520, 700)
-            self.resize(600, 750)
+            self.setMinimumSize(520, 730)
+            self.resize(600, 760)
 
         screen = QApplication.primaryScreen().geometry()
         self.move((screen.width() - 500) // 2, (screen.height() - self.height()) // 2)
@@ -1548,61 +1548,60 @@ class VintedScraperGUI(QMainWindow):
         r3b.addStretch()
         lo.addLayout(r3b)
 
-# 行 3c：裁剪状态（仅设置后显示）
-        self._crop_status_widget = QWidget()
-        self._crop_status_widget.setStyleSheet("background:transparent;")
-        r3c = QHBoxLayout(self._crop_status_widget)
-        r3c.setContentsMargins(0, 2, 0, 0)
-        r3c.setSpacing(8)
-        lbl_icon = QLabel("✂")
-        lbl_icon.setStyleSheet("font-size:13px; color:#10b981; background:transparent;")
-        r3c.addWidget(lbl_icon)
+        # 行 3c：裁剪+水印状态（合并一行，仅设置后显示）
+        self._status_widget = QWidget()
+        self._status_widget.setStyleSheet("background:transparent;")
+        r3c = QHBoxLayout(self._status_widget)
+        r3c.setContentsMargins(0, 4, 0, 0)
+        r3c.setSpacing(6)
+        # 裁剪部分
+        self._crop_status_group = QWidget()
+        self._crop_status_group.setStyleSheet("background:transparent;")
+        csg = QHBoxLayout(self._crop_status_group)
+        csg.setContentsMargins(0, 0, 0, 0)
+        csg.setSpacing(4)
+        csg.addWidget(QLabel("✂"))
         self.lbl_crop_summary = QLabel()
         self.lbl_crop_summary.setTextFormat(Qt.RichText)
-        self.lbl_crop_summary.setStyleSheet("font-size:12px; color:#374151; background:transparent;")
-        r3c.addWidget(self.lbl_crop_summary)
-        self.btn_crop_clear = QLabel("✕ 清除")
+        self.lbl_crop_summary.setStyleSheet("font-size:11px; color:#374151; background:transparent;")
+        csg.addWidget(self.lbl_crop_summary)
+        self.btn_crop_clear = QLabel("✕")
         self.btn_crop_clear.setAttribute(Qt.WA_Hover, True)
         self.btn_crop_clear.setCursor(Qt.PointingHandCursor)
-        self.btn_crop_clear.setToolTip("一键清除裁剪设置")
-        self.btn_crop_clear.setStyleSheet("""
-            QLabel { background: #fef2f2; border: 1px solid #fca5a5;
-            border-radius: 3px; padding: 1px 8px; font-size: 12px; color: #dc2626; }
-            QLabel:hover { background: #fee2e2; border-color: #ef4444; color: #b91c1c; }
-        """)
+        self.btn_crop_clear.setToolTip("清除裁剪")
+        self.btn_crop_clear.setStyleSheet("QLabel{font-size:10px;color:#ef4444;background:transparent;} QLabel:hover{color:#dc2626;font-weight:bold;}")
         self.btn_crop_clear.mousePressEvent = lambda e: self._clear_crop()
-        r3c.addWidget(self.btn_crop_clear)
-        r3c.addStretch()
-        self._crop_status_widget.hide()
-        lo.addWidget(self._crop_status_widget)
-
-        # 水印状态行（仅开启后显示）
-        self._watermark_status_widget = QWidget()
-        self._watermark_status_widget.setStyleSheet("background:transparent;")
-        r3d = QHBoxLayout(self._watermark_status_widget)
-        r3d.setContentsMargins(0, 2, 0, 0)
-        r3d.setSpacing(8)
-        lbl_wm_icon = QLabel("🔏")
-        lbl_wm_icon.setStyleSheet("font-size:13px; color:#10b981; background:transparent;")
-        r3d.addWidget(lbl_wm_icon)
+        csg.addWidget(self.btn_crop_clear)
+        self._crop_status_group.hide()
+        r3c.addWidget(self._crop_status_group)
+        # 分隔符
+        self._status_sep = QLabel("·")
+        self._status_sep.setStyleSheet("font-size:11px;color:#d1d5db;background:transparent;padding:0 4px;")
+        self._status_sep.hide()
+        r3c.addWidget(self._status_sep)
+        # 水印部分
+        self._watermark_status_group = QWidget()
+        self._watermark_status_group.setStyleSheet("background:transparent;")
+        wsg = QHBoxLayout(self._watermark_status_group)
+        wsg.setContentsMargins(0, 0, 0, 0)
+        wsg.setSpacing(4)
+        wsg.addWidget(QLabel("🔏"))
         self.lbl_watermark_summary = QLabel()
         self.lbl_watermark_summary.setTextFormat(Qt.RichText)
-        self.lbl_watermark_summary.setStyleSheet("font-size:12px; color:#374151; background:transparent;")
-        r3d.addWidget(self.lbl_watermark_summary)
-        self.btn_watermark_clear = QLabel("✕ 清除")
+        self.lbl_watermark_summary.setStyleSheet("font-size:11px; color:#374151; background:transparent;")
+        wsg.addWidget(self.lbl_watermark_summary)
+        self.btn_watermark_clear = QLabel("✕")
         self.btn_watermark_clear.setAttribute(Qt.WA_Hover, True)
         self.btn_watermark_clear.setCursor(Qt.PointingHandCursor)
-        self.btn_watermark_clear.setToolTip("关闭隐形水印")
-        self.btn_watermark_clear.setStyleSheet("""
-            QLabel { background: #fef2f2; border: 1px solid #fca5a5;
-            border-radius: 3px; padding: 1px 8px; font-size: 12px; color: #dc2626; }
-            QLabel:hover { background: #fee2e2; border-color: #ef4444; color: #b91c1c; }
-        """)
+        self.btn_watermark_clear.setToolTip("关闭水印")
+        self.btn_watermark_clear.setStyleSheet("QLabel{font-size:10px;color:#ef4444;background:transparent;} QLabel:hover{color:#dc2626;font-weight:bold;}")
         self.btn_watermark_clear.mousePressEvent = lambda e: self._clear_watermark()
-        r3d.addWidget(self.btn_watermark_clear)
-        r3d.addStretch()
-        self._watermark_status_widget.hide()
-        lo.addWidget(self._watermark_status_widget)
+        wsg.addWidget(self.btn_watermark_clear)
+        self._watermark_status_group.hide()
+        r3c.addWidget(self._watermark_status_group)
+        r3c.addStretch()
+        self._status_widget.hide()
+        lo.addWidget(self._status_widget)
 
         parent.addWidget(g)
 
@@ -1878,12 +1877,8 @@ class VintedScraperGUI(QMainWindow):
         if self._watermark:
             v = "<span style='color:#0d9488;font-weight:600;'>"
             cv = "</span>"
-            s = "<span style='color:#d1d5db;'>|</span>"
             self.lbl_watermark_summary.setText(
-                f"水印：{v}{self._watermark_text}{cv}  {s}  "
-                f"透明度 {v}{self._watermark_opacity}%{cv}  {s}  "
-                f"位置 {v}{self._watermark_pos}{cv}")
-            self._watermark_status_widget.show()
+                f"水印 {v}{self._watermark_text}{cv} {v}{self._watermark_opacity}%{cv} {v}{self._watermark_pos}{cv}")
             self.btn_watermark.setText("隐形水印 ✓")
             self.btn_watermark.setStyleSheet("""
                 QPushButton { background: #d1fae5; border: 1px solid #6ee7b7;
@@ -1891,13 +1886,13 @@ class VintedScraperGUI(QMainWindow):
                 QPushButton:hover { background: #a7f3d0; border-color: #34d399; }
             """)
         else:
-            self._watermark_status_widget.hide()
             self.btn_watermark.setText("隐形水印 ▸")
             self.btn_watermark.setStyleSheet("""
                 QPushButton { background: #f3f4f6; border: 1px solid #d1d5db;
                 border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #374151; }
                 QPushButton:hover { background: #e5e7eb; border-color: #9ca3af; }
             """)
+        self._update_status_row()
 
     def _clear_watermark(self):
         self._watermark = False
@@ -1992,11 +1987,22 @@ class VintedScraperGUI(QMainWindow):
         self._update_crop_summary()
         self._save_config()
 
+    def _update_status_row(self):
+        """根据裁剪/水印状态显示或隐藏合并状态行"""
+        crop_on = any([self._crop_top, self._crop_bottom, self._crop_left, self._crop_right])
+        wm_on = self._watermark
+        self._crop_status_group.setVisible(crop_on)
+        self._watermark_status_group.setVisible(wm_on)
+        self._status_sep.setVisible(crop_on and wm_on)
+        if crop_on or wm_on:
+            self._status_widget.show()
+        else:
+            self._status_widget.hide()
+
     def _update_crop_summary(self):
-        """更新裁剪状态行"""
+        """更新裁剪状态"""
         t, b, l, r = self._crop_top, self._crop_bottom, self._crop_left, self._crop_right
         if t == 0 and b == 0 and l == 0 and r == 0:
-            self._crop_status_widget.hide()
             self.btn_custom_crop.setText("自定义裁剪 ▸")
             self.btn_custom_crop.setStyleSheet("""
                 QPushButton { background: #f3f4f6; border: 1px solid #d1d5db;
@@ -2007,18 +2013,18 @@ class VintedScraperGUI(QMainWindow):
             parts = []
             v = "<span style='color:#0d9488;font-weight:600;'>"
             cv = "</span>"
-            if t > 0: parts.append(f"上 {v}{t}%{cv}")
-            if b > 0: parts.append(f"下 {v}{b}%{cv}")
-            if l > 0: parts.append(f"左 {v}{l}%{cv}")
-            if r > 0: parts.append(f"右 {v}{r}%{cv}")
-            self.lbl_crop_summary.setText("裁切：" + "  <span style='color:#d1d5db;'>|</span>  ".join(parts))
-            self._crop_status_widget.show()
+            if t > 0: parts.append(f"上{v}{t}%{cv}")
+            if b > 0: parts.append(f"下{v}{b}%{cv}")
+            if l > 0: parts.append(f"左{v}{l}%{cv}")
+            if r > 0: parts.append(f"右{v}{r}%{cv}")
+            self.lbl_crop_summary.setText("裁切 " + " ".join(parts))
             self.btn_custom_crop.setText("自定义裁剪 ✓")
             self.btn_custom_crop.setStyleSheet("""
                 QPushButton { background: #d1fae5; border: 1px solid #6ee7b7;
                 border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #065f46; }
                 QPushButton:hover { background: #a7f3d0; border-color: #34d399; }
             """)
+        self._update_status_row()
 
     def _open_crop_dialog(self):
         dlg = CropDialog(self._crop_top, self._crop_bottom, self._crop_left, self._crop_right, self)
