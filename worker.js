@@ -5,7 +5,7 @@ const DL = `https://github.com/${REPO}/releases/download`;
 const AI_MODEL = "google/gemini-2.5-flash-image";
 
 // 最新版本信息（发布时更新此处）
-const LATEST_VERSION = "v3.6.10";
+const LATEST_VERSION = "3.6.10";
 const LATEST_CHANGELOG = `新增自定义裁剪与隐形水印功能
 
 自定义裁剪 — 四边百分比滑块灵活裁切、一键目标比例、快捷键预设、实时示意图预览
@@ -59,7 +59,7 @@ export default {
       return Response.json({
         version: LATEST_VERSION,
         changelog: LATEST_CHANGELOG,
-        download_url: `https://${url.hostname}/download?v=${LATEST_VERSION}`,
+        download_url: `https://${url.hostname}/download?v=v${LATEST_VERSION}`,
       }, { headers: { "Access-Control-Allow-Origin": "*" } });
     }
 
