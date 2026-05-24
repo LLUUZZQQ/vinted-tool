@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1050,193 +1050,240 @@ class WatermarkDialog(QDialog):
 
 # ====================== 处理完成对话框 ======================
 class CompletionDialog(QDialog):
-    """仿 EXIF 信息面板的完成对话框，在线采集和本地处理共用"""
+    """处理完成对话框"""
+
+    # 中英文地名映射
+    _COUNTRY_EN = {"法国":"France","西班牙":"Spain","英国":"UK","意大利":"Italy","德国":"Germany",
+        "卢森堡":"Luxembourg","爱尔兰":"Ireland","波兰":"Poland","美国":"USA","俄罗斯":"Russia",
+        "荷兰":"Netherlands","葡萄牙":"Portugal"}
+    _CITY_EN = {"巴黎":"Paris","里昂":"Lyon","马赛":"Marseille","波尔多":"Bordeaux","里尔":"Lille",
+        "南特":"Nantes","尼斯":"Nice","斯特拉斯堡":"Strasbourg","图卢兹":"Toulouse",
+        "蒙彼利埃":"Montpellier","雷恩":"Rennes","格勒诺布尔":"Grenoble","第戎":"Dijon",
+        "昂热":"Angers","勒阿弗尔":"Le Havre","克莱蒙费朗":"Clermont-Ferrand",
+        "圣艾蒂安":"Saint-Etienne","土伦":"Toulon","马德里":"Madrid","巴塞罗那":"Barcelona",
+        "瓦伦西亚":"Valencia","塞维利亚":"Seville","毕尔巴鄂":"Bilbao","马拉加":"Malaga",
+        "萨拉戈萨":"Zaragoza","阿利坎特":"Alicante","穆尔西亚":"Murcia","帕尔马":"Palma",
+        "拉斯帕尔马斯":"Las Palmas","格拉纳达":"Granada","科尔多瓦":"Cordoba",
+        "巴利亚多利德":"Valladolid","希洪":"Gijon","拉科鲁尼亚":"A Coruna","维多利亚":"Vitoria",
+        "桑坦德":"Santander","伦敦":"London","曼彻斯特":"Manchester","伯明翰":"Birmingham",
+        "利物浦":"Liverpool","爱丁堡":"Edinburgh","格拉斯哥":"Glasgow","布里斯托":"Bristol",
+        "利兹":"Leeds","谢菲尔德":"Sheffield","诺丁汉":"Nottingham","南安普顿":"Southampton",
+        "纽卡斯尔":"Newcastle","剑桥":"Cambridge","牛津":"Oxford","加的夫":"Cardiff",
+        "贝尔法斯特":"Belfast","布莱顿":"Brighton","莱斯特":"Leicester","罗马":"Rome",
+        "米兰":"Milan","那不勒斯":"Naples","都灵":"Turin","佛罗伦萨":"Florence",
+        "博洛尼亚":"Bologna","威尼斯":"Venice","热那亚":"Genoa","巴勒莫":"Palermo",
+        "维罗纳":"Verona","帕多瓦":"Padua","的里雅斯特":"Trieste","比萨":"Pisa",
+        "卡塔尼亚":"Catania","巴里":"Bari","卡利亚里":"Cagliari","布雷西亚":"Brescia",
+        "摩德纳":"Modena","柏林":"Berlin","慕尼黑":"Munich","汉堡":"Hamburg",
+        "法兰克福":"Frankfurt","科隆":"Cologne","斯图加特":"Stuttgart","杜塞尔多夫":"Dusseldorf",
+        "莱比锡":"Leipzig","多特蒙德":"Dortmund","埃森":"Essen","不来梅":"Bremen",
+        "德累斯顿":"Dresden","汉诺威":"Hanover","纽伦堡":"Nuremberg","波恩":"Bonn",
+        "明斯特":"Munster","弗莱堡":"Freiburg","曼海姆":"Mannheim",
+        "卢森堡市":"Luxembourg City","阿尔泽特河畔埃施":"Esch-sur-Alzette",
+        "迪弗当日":"Differdange","迪德朗日":"Dudelange","埃特尔布吕克":"Ettelbruck",
+        "雷米希":"Remich","都柏林":"Dublin","科克":"Cork","利默里克":"Limerick","戈尔韦":"Galway",
+        "沃特福德":"Waterford","德罗赫达":"Drogheda","基尔肯尼":"Kilkenny","斯莱戈":"Sligo",
+        "韦克斯福德":"Wexford","华沙":"Warsaw","克拉科夫":"Krakow","罗兹":"Lodz",
+        "弗罗茨瓦夫":"Wroclaw","波兹南":"Poznan","格但斯克":"Gdansk","什切青":"Szczecin",
+        "比得哥什":"Bydgoszcz","卢布林":"Lublin","卡托维兹":"Katowice",
+        "比亚韦斯托克":"Bialystok","格丁尼亚":"Gdynia","琴斯托霍瓦":"Czestochowa",
+        "拉多姆":"Radom","托伦":"Torun","热舒夫":"Rzeszow","凯尔采":"Kielce",
+        "奥尔什丁":"Olsztyn","纽约":"New York","洛杉矶":"Los Angeles","芝加哥":"Chicago",
+        "休斯顿":"Houston","迈阿密":"Miami","旧金山":"San Francisco","西雅图":"Seattle",
+        "波士顿":"Boston","亚特兰大":"Atlanta","莫斯科":"Moscow","圣彼得堡":"St. Petersburg",
+        "叶卡捷琳堡":"Yekaterinburg","喀山":"Kazan","新西伯利亚":"Novosibirsk","索契":"Sochi",
+        "符拉迪沃斯托克":"Vladivostok","加里宁格勒":"Kaliningrad",
+        "下诺夫哥罗德":"Nizhny Novgorod","阿姆斯特丹":"Amsterdam","鹿特丹":"Rotterdam",
+        "海牙":"The Hague","乌得勒支":"Utrecht","埃因霍温":"Eindhoven","格罗宁根":"Groningen",
+        "莱顿":"Leiden","代尔夫特":"Delft","马斯特里赫特":"Maastricht","里斯本":"Lisbon",
+        "波尔图":"Porto","科英布拉":"Coimbra","布拉加":"Braga","法鲁":"Faro","阿威罗":"Aveiro",
+        "塞图巴尔":"Setubal","丰沙尔":"Funchal","埃武拉":"Evora",
+        # 剩余小城市用拼音/英文翻译
+        "布鲁日":"Bruges","圣塞巴斯蒂安":"San Sebastian","塔拉戈纳":"Tarragona",
+        "阿伯丁":"Aberdeen","普利茅斯":"Plymouth","巴勒莫":"Palermo",
+        "威尼斯梅斯特雷":"Venice Mestre","圣雷莫":"Sanremo","的里雅斯特":"Trieste",
+        "锡耶纳":"Siena","卡普里":"Capri","波西塔诺":"Positano",
+        "吕德斯海姆":"Rudesheim","巴登巴登":"Baden-Baden","维尔茨堡":"Wurzburg",
+        "特里尔":"Trier","康斯坦茨":"Konstanz","菲森":"Fussen",
+        "萨尔布吕肯":"Saarbrucken","乌尔姆":"Ulm","雷根斯堡":"Regensburg",
+        "根特":"Ghent","那慕尔":"Namur","安特卫普":"Antwerp",
+        "埃施":"Esch","迪基希":"Diekirch","菲安登":"Vianden",
+        "戈尔韦市":"Galway City","基拉尼":"Killarney","科布":"Cobh",
+        "莫纳汉":"Monaghan","卡洛":"Carlow","阿斯隆":"Athlone",
+        "扎科帕内":"Zakopane","索波特":"Sopot","马尔堡":"Malbork",
+        "卢布林":"Lublin","扎莫希奇":"Zamosc","普热梅希尔":"Przemysl",
+        "迈阿密海滩":"Miami Beach","圣何塞":"San Jose","波特兰":"Portland",
+        "圣莫尼卡":"Santa Monica","棕榈泉":"Palm Springs",
+        "克拉斯诺达尔":"Krasnodar","摩尔曼斯克":"Murmansk","伊尔库茨克":"Irkutsk",
+        "海参崴":"Vladivostok","车里雅宾斯克":"Chelyabinsk",
+        "蒂尔堡":"Tilburg","奈梅亨":"Nijmegen","布雷达":"Breda",
+        "阿尔布费拉":"Albufeira","卡斯卡伊斯":"Cascais","拉各斯":"Lagos",
+    }
 
     def __init__(self, title, stats, seconds, out_dir, parent=None):
         super().__init__(parent)
         self.setWindowTitle(title)
-        self.setFixedSize(430, 550)
+        self.setMinimumSize(460, 520)
+        self.resize(460, 620)
         self.setStyleSheet("QDialog { background: #ffffff; }")
         self._stats = stats
         self._seconds = seconds
         self._out_dir = out_dir
-        self._action = None  # 'open' / 'preview' / None
+        self._action = None
         self._setup_ui()
 
     @property
     def action(self):
         return self._action
 
+    @staticmethod
+    def _make_card(title, rows, accent="#d1d5db"):
+        bar = QFrame()
+        bar.setFixedWidth(3)
+        bar.setStyleSheet(f"QFrame{{background:{accent};border:none;border-radius:2px;}}")
+        card = QFrame()
+        card.setStyleSheet("QFrame{background:#f9fafb;border:none;border-radius:0 10px 10px 0;}")
+        lo = QVBoxLayout(card)
+        lo.setContentsMargins(14, 14, 16, 14)
+        lo.setSpacing(6)
+        hdr = QLabel(title)
+        hdr.setStyleSheet("font-size:13px; font-weight:bold; color:#1f2937; background:transparent; padding-bottom:2px;")
+        lo.addWidget(hdr)
+        for label, value in rows:
+            lbl = QLabel(f"<span style='color:#9ca3af;font-size:12px;'>{label}</span>  "
+                         f"<span style='color:#0d9488;font-weight:600;font-size:12px;'>{value}</span>")
+            lbl.setTextFormat(Qt.RichText)
+            lbl.setWordWrap(True)
+            lbl.setStyleSheet("padding-left:2px; background:transparent;")
+            lo.addWidget(lbl)
+        wrap = QWidget()
+        wrap.setStyleSheet("background:transparent;")
+        wl = QHBoxLayout(wrap)
+        wl.setContentsMargins(0, 0, 0, 0)
+        wl.setSpacing(0)
+        wl.addWidget(bar)
+        wl.addWidget(card, 1)
+        return wrap
+
     def _setup_ui(self):
         be = __import__('Vinted_抓图')
         root = QVBoxLayout(self)
-        root.setContentsMargins(24, 20, 24, 16)
-        root.setSpacing(10)
-        v = "<span style='color:#0d9488;font-weight:600;'>"
-        cv = "</span>"
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        # ── 标题 ──
+        header = QWidget()
+        header.setStyleSheet("background:transparent;")
+        hl = QVBoxLayout(header)
+        hl.setContentsMargins(24, 18, 24, 4)
+        hl.setSpacing(2)
         title_lbl = QLabel(f"✅  {self.windowTitle()}")
-        title_lbl.setStyleSheet("font-size:16px; font-weight:bold; color:#1f2937; background:transparent;")
-        root.addWidget(title_lbl)
-
-        # ── 统计（HTML 高亮数字） ──
-        stats_html = f"<span style='font-size:13px;color:#374151;'>{self._stats}</span>"
+        title_lbl.setStyleSheet("font-size:17px; font-weight:bold; color:#111827; background:transparent;")
+        hl.addWidget(title_lbl)
+        stats_html = f"<span style='font-size:13px;color:#6b7280;'>{self._stats}</span>"
         if self._seconds:
             m, s = divmod(int(self._seconds), 60)
-            t = f"{m}分{s}秒" if m else f"{s}秒"
-            stats_html += f"<br><span style='font-size:12px;color:#6b7280;'>⏱ 本次耗时 {v}{t}{cv}</span>"
+            t = f"{m} 分 {s} 秒" if m else f"{s} 秒"
+            stats_html += f"  ·  <span style='font-size:13px;color:#6b7280;'>⏱ {t}</span>"
         stats_lbl = QLabel(stats_html)
         stats_lbl.setTextFormat(Qt.RichText)
-        root.addWidget(stats_lbl)
+        hl.addWidget(stats_lbl)
+        root.addWidget(header)
 
-        # ── EXIF 信息面板 ──
-        gb = QFrame()
-        gb.setStyleSheet("QFrame { background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; }")
-        gb_lo = QVBoxLayout(gb)
-        gb_lo.setContentsMargins(14, 10, 14, 10)
-        gb_lo.setSpacing(2)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setStyleSheet("QScrollArea{background:transparent;border:none;} QScrollBar:vertical{width:6px;background:transparent;margin:0;} QScrollBar::handle:vertical{background:#e5e7eb;border-radius:3px;min-height:30px;} QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}")
+        content = QWidget()
+        content.setStyleSheet("background:transparent;")
+        clo = QVBoxLayout(content)
+        clo.setContentsMargins(20, 6, 20, 6)
+        clo.setSpacing(8)
 
-        hdr = QLabel("📷 拍摄元数据（已注入每张图片）")
-        hdr.setStyleSheet("font-size:12px; font-weight:bold; color:#1f2937; background:transparent; padding-bottom:4px;")
-        gb_lo.addWidget(hdr)
-
-        rows = []
+        exif_rows = []
         se = getattr(be, 'SESSION_EXIF', None)
         if se:
             make, model, software, dev_model, exposure, fnum, iso, lens = se
-            rows.append(("设备", f"{make} {model}"))
-            rows.append(("镜头", lens))
-            rows.append(("光圈", f"f/{fnum[0]/fnum[1]:.1f}"))
-            rows.append(("ISO", str(iso)))
-            rows.append(("曝光", f"1/{int(exposure[1]/exposure[0])}s" if exposure[0] else "Auto"))
+            exif_rows.append(("设备", f"{make} {model}"))
+            exif_rows.append(("镜头", lens))
+            exif_rows.append(("光圈 / ISO", f"f/{fnum[0]/fnum[1]:.1f}  ·  ISO {iso}"))
+            exif_rows.append(("曝光", f"1/{int(exposure[1]/exposure[0])}s" if exposure[0] else "Auto"))
         sg = getattr(be, 'SESSION_GPS', None)
         if sg:
             lat, lon, city = sg
-            rows.append(("纬度", f"{abs(lat):.4f}° {'N' if lat>=0 else 'S'}"))
-            rows.append(("经度", f"{abs(lon):.4f}° {'E' if lon>=0 else 'W'}"))
-            rows.append(("地点", f"{getattr(be,'SELECTED_COUNTRY','')} {city}"))
+            country_cn = getattr(be,'SELECTED_COUNTRY','')
+            city_en = self._CITY_EN.get(city, city)
+            country_en = self._COUNTRY_EN.get(country_cn, country_cn)
+            exif_rows.append(("Location", f"{abs(lat):.4f}°{'N' if lat>=0 else 'S'}, {abs(lon):.4f}°{'E' if lon>=0 else 'W'}  ·  {city_en}, {country_en}"))
         sj = getattr(be, 'SESSION_JPEG', None)
         if sj:
             q, sub = sj
-            rows.append(("画质", f"JPEG {q} · {sub}"))
+            exif_rows.append(("JPEG 编码", f"质量 {q}  ·  二次采样 {sub}"))
+        clo.addWidget(self._make_card("📷 拍摄元数据", exif_rows, "#9ca3af"))
 
-        for label, value in rows:
-            row = QHBoxLayout()
-            row.setSpacing(8)
-            k = QLabel(label)
-            k.setFixedWidth(52)
-            k.setStyleSheet("font-size:12px; color:#9ca3af; background:transparent;")
-            row.addWidget(k)
-            v = QLabel(f"{v}{value}{cv}")
-            v.setTextFormat(Qt.RichText)
-            row.addWidget(v)
-            row.addStretch()
-            gb_lo.addLayout(row)
-
-        root.addWidget(gb)
-
-        # ── 防检测处理标签 ──
-        features = []
+        proc_rows = []
         if be.ADVANCED_ANTI_DETECT_ENABLED:
-            features.append(("🧠", "AI指纹重构"))
+            proc_rows.append(("AI 指纹重构", "Multi-dimensional feature space reconstruction · Frequency-domain block alignment perturbation · Spatial correlated noise injection · Adaptive luminance field"))
         if be.DEEP_ANTI_DUPLICATE_ENABLED:
-            features.append(("🔬", f"指纹深度重建×{be.DEEP_MODE_VARIANTS}"))
-        if be.COMPRESS_ENABLED:
-            features.append(("🖼", "智能画质"))
-        if be.LOSSLESS_ENABLED:
-            features.append(("📦", "原画输出"))
+            proc_rows.append(("深度指纹重建", f"Elastic deformation field mapping · Optical distortion modeling · Color temperature gradient field · Sensor noise simulation · ×{be.DEEP_MODE_VARIANTS} fingerprints output"))
         if be.WATERMARK_ENABLED:
-            features.append(("🔏", f"{be.WATERMARK_TEXT} {be.WATERMARK_OPACITY}% {be.WATERMARK_POSITION}"))
-        if be.DEVICE_CROP_ENABLED:
-            features.append(("📐", "画幅匹配"))
+            proc_rows.append(("隐形水印", f"\"{be.WATERMARK_TEXT}\"  ·  {be.WATERMARK_OPACITY}% opacity  ·  {be.WATERMARK_POSITION}"))
         if be.CUSTOM_CROP_ENABLED:
             parts = []
             t, b, l, r = be.CROP_TOP_PCT, be.CROP_BOTTOM_PCT, be.CROP_LEFT_PCT, be.CROP_RIGHT_PCT
-            if t: parts.append(f"上{t}%")
-            if b: parts.append(f"下{b}%")
-            if l: parts.append(f"左{l}%")
-            if r: parts.append(f"右{r}%")
-            features.append(("✂", f"裁切 {' '.join(parts)}" if parts else "自定义裁剪"))
+            if t: parts.append(f"Top {t}%")
+            if b: parts.append(f"Bottom {b}%")
+            if l: parts.append(f"Left {l}%")
+            if r: parts.append(f"Right {r}%")
+            proc_rows.append(("自定义裁剪", "  ".join(parts) if parts else "已启用"))
+        if be.DEVICE_CROP_ENABLED:
+            proc_rows.append(("画幅匹配", be.SELECTED_DEVICE))
+        if be.COMPRESS_ENABLED:
+            proc_rows.append(("智能画质", "Adaptive quality field 95-98  ·  Chroma subsampling dynamic randomization"))
+        if be.LOSSLESS_ENABLED:
+            proc_rows.append(("原画输出", "100% fidelity  ·  4:4:4 full chroma lossless encoding"))
+        if proc_rows:
+            clo.addWidget(self._make_card("🛡 防检测处理", proc_rows, "#60a5fa"))
 
-        if features:
-            hdr = QLabel("已启用的处理功能")
-            hdr.setStyleSheet("font-size:12px; font-weight:bold; color:#374151; background:transparent; padding-bottom:4px;")
-            root.addWidget(hdr)
-            # 胶囊徽章容器（手动换行）
-            pill_frame = QWidget()
-            pill_frame.setStyleSheet("background:transparent;")
-            pill_lo = QVBoxLayout(pill_frame)
-            pill_lo.setContentsMargins(0, 0, 0, 0)
-            pill_lo.setSpacing(4)
-            row = QHBoxLayout()
-            row.setSpacing(6)
-            row.setContentsMargins(0, 0, 0, 0)
-            row_width = 0
-            max_width = 370  # 对话框宽 430 - 边距
-            for icon, text in features:
-                pill_text = f"{icon} {text}"
-                pill = QLabel(pill_text)
-                pill.setStyleSheet("""
-                    QLabel { background:#d1fae5; border:1px solid #6ee7b7;
-                    border-radius:6px; padding:3px 10px; font-size:12px;
-                    color:#065f46; }
-                """)
-                pill.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-                pill.adjustSize()
-                pw = pill.sizeHint().width()
-                if row_width + pw > max_width and row_width > 0:
-                    row.addStretch()
-                    pill_lo.addLayout(row)
-                    row = QHBoxLayout()
-                    row.setSpacing(6)
-                    row.setContentsMargins(0, 0, 0, 0)
-                    row_width = 0
-                row.addWidget(pill)
-                row_width += pw + 6
-            row.addStretch()
-            pill_lo.addLayout(row)
-            root.addWidget(pill_frame)
+        clo.addWidget(self._make_card("🎨 基础变换（始终执行）", [
+            ("几何重构", "Stochastic affine rotation ±0.8°~1.5°  ·  Adaptive edge cropping 1.5%~4%"),
+            ("光学渲染", "Gaussian convolution kernel 0.2~0.4px  ·  Unsharp mask enhancement"),
+            ("像素级扰动", "Per-channel RGB perturbation ±1"),
+            ("元数据重生", "ICC profile stripping  ·  Complete EXIF structure rebuild"),
+        ], "#10b981"))
 
-        # ── 输出路径 ──
         if self._out_dir:
             short = os.path.basename(self._out_dir)
-            path_lbl = QLabel(f"📁 <span style='color:#6b7280;'>{short}</span>")
+            path_lbl = QLabel(f"📁 <span style='color:#0d9488;font-weight:500;'>{short}</span>")
             path_lbl.setTextFormat(Qt.RichText)
             path_lbl.setToolTip(self._out_dir)
-            root.addWidget(path_lbl)
-        root.addStretch()
+            path_lbl.setStyleSheet("font-size:12px; padding:4px 0 0 2px; background:transparent;")
+            clo.addWidget(path_lbl)
 
-        # ── 按钮 ──
-        btns = QHBoxLayout()
+        clo.addStretch()
+        scroll.setWidget(content)
+        root.addWidget(scroll, 1)
+
+        btn_bar = QWidget()
+        btn_bar.setStyleSheet("background:#fafafa; border-top:1px solid #f0f0f0;")
+        btns = QHBoxLayout(btn_bar)
+        btns.setContentsMargins(20, 12, 20, 12)
+        btns.setSpacing(10)
         btns.addStretch()
         if self._out_dir:
-            btn_open = QPushButton("打开目录")
-            btn_open.setStyleSheet("""
-                QPushButton { background:#fff; border:1px solid #d1d5db;
-                border-radius:4px; padding:5px 14px; font-size:13px; color:#374151; }
-                QPushButton:hover { background:#f3f4f6; }
-            """)
+            btn_open = QPushButton("📂 打开目录")
+            btn_open.setStyleSheet("QPushButton{background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:6px 16px;font-size:13px;color:#374151;} QPushButton:hover{background:#f3f4f6;border-color:#9ca3af;}")
             btn_open.clicked.connect(lambda: self._do_action('open'))
             btns.addWidget(btn_open)
-        btn_preview = QPushButton("预览对比")
-        btn_preview.setStyleSheet("""
-            QPushButton { background:#fff; border:1px solid #d1d5db;
-            border-radius:4px; padding:5px 14px; font-size:13px; color:#374151; }
-            QPushButton:hover { background:#f3f4f6; }
-        """)
+        btn_preview = QPushButton("🔍 预览对比")
+        btn_preview.setStyleSheet("QPushButton{background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:6px 16px;font-size:13px;color:#374151;} QPushButton:hover{background:#f3f4f6;border-color:#9ca3af;}")
         btn_preview.clicked.connect(lambda: self._do_action('preview'))
         btns.addWidget(btn_preview)
-        ok = QPushButton("确定")
-        ok.setStyleSheet("""
-            QPushButton { background:#10b981; color:white; border:none;
-            border-radius:4px; padding:5px 18px; font-size:13px; font-weight:bold; }
-            QPushButton:hover { background:#059669; }
-        """)
+        ok = QPushButton("确 定")
+        ok.setStyleSheet("QPushButton{background:#10b981;color:white;border:none;border-radius:6px;padding:6px 24px;font-size:13px;font-weight:bold;} QPushButton:hover{background:#059669;}")
         ok.clicked.connect(self.accept)
         ok.setDefault(True)
         btns.addWidget(ok)
-        root.addLayout(btns)
+        root.addWidget(btn_bar)
 
     def _do_action(self, act):
         self._action = act
@@ -2011,10 +2058,10 @@ class VintedScraperGUI(QMainWindow):
             return True
         parts = []
         t, b, l, r = self._crop_top, self._crop_bottom, self._crop_left, self._crop_right
-        if t > 0: parts.append(f"上 {t}%")
-        if b > 0: parts.append(f"下 {b}%")
-        if l > 0: parts.append(f"左 {l}%")
-        if r > 0: parts.append(f"右 {r}%")
+        if t > 0: parts.append(f"Top {t}%")
+        if b > 0: parts.append(f"Bottom {b}%")
+        if l > 0: parts.append(f"Left {l}%")
+        if r > 0: parts.append(f"Right {r}%")
         msg = f"已设置自定义裁剪：{'、'.join(parts)}\n\n{context}时将对所有图片应用此裁切，是否继续？"
         return QMessageBox.Yes == QMessageBox.question(self, "裁剪确认", msg,
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)

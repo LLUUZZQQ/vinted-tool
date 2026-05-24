@@ -16,7 +16,7 @@ import subprocess
 UPDATE_URL = "https://vt-proxy.vtmax.workers.dev/update.json"
 
 # 当前版本
-CURRENT_VERSION = "3.6.10"
+CURRENT_VERSION = "3.6.11"
 _last_error = ""  # 最近一次下载错误信息
 
 
