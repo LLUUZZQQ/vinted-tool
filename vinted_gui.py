@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1818,8 +1818,11 @@ class VintedScraperGUI(QMainWindow):
             return
         path, _ = QFileDialog.getSaveFileName(self, "保存失败链接", "failed_urls.txt", "文本文件 (*.txt)")
         if path:
-            with open(path, "w", encoding="utf-8") as f:
-                f.write("\n".join(backend.FAILED_URLS))
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write("\n".join(backend.FAILED_URLS))
+            except Exception:
+                QMessageBox.warning(self, "错误", "保存失败，请检查路径权限。")
 
     # ---- 设置回调 ----
     def _on_path_text_changed(self, text):
@@ -2082,7 +2085,10 @@ class VintedScraperGUI(QMainWindow):
     def _reset_defaults(self):
         if QMessageBox.Yes == QMessageBox.question(self, "确认", "恢复所有默认设置并重启？"):
             if os.path.exists(backend.CONFIG_FILE):
-                os.remove(backend.CONFIG_FILE)
+                try:
+                    os.remove(backend.CONFIG_FILE)
+                except Exception:
+                    pass
             os.execl(sys.executable, sys.executable, *sys.argv)
 
     # ---- 任务 ----
@@ -2103,7 +2109,11 @@ class VintedScraperGUI(QMainWindow):
         if not os.path.exists(save_path):
             if QMessageBox.Yes != QMessageBox.question(self, "提示", f"目录不存在，是否创建？\n{save_path}"):
                 return
-            os.makedirs(save_path)
+            try:
+                os.makedirs(save_path, exist_ok=True)
+            except Exception:
+                QMessageBox.warning(self, "错误", f"无法创建目录：{save_path}")
+                return
         backend.CUSTOM_SAVE_ROOT = save_path
         self._save_path = save_path
         self._save_config()
@@ -2285,15 +2295,18 @@ class VintedScraperGUI(QMainWindow):
         os.makedirs(orig_dir, exist_ok=True)
         expanded = []
         for p in paths:
-            base, ext = os.path.splitext(os.path.basename(p))
-            cp = os.path.join(out_dir, f"{base}{ext}")
-            _shutil.copy2(p, cp)
-            _shutil.copy2(p, os.path.join(orig_dir, f"{base}{ext}"))  # 原图备份
-            expanded.append(cp)
-            for v in range(2, variants + 1):
-                cp_v = os.path.join(out_dir, f"{base}_v{v}{ext}")
-                _shutil.copy2(p, cp_v)
-                expanded.append(cp_v)
+            try:
+                base, ext = os.path.splitext(os.path.basename(p))
+                cp = os.path.join(out_dir, f"{base}{ext}")
+                _shutil.copy2(p, cp)
+                _shutil.copy2(p, os.path.join(orig_dir, f"{base}{ext}"))  # 原图备份
+                expanded.append(cp)
+                for v in range(2, variants + 1):
+                    cp_v = os.path.join(out_dir, f"{base}_v{v}{ext}")
+                    _shutil.copy2(p, cp_v)
+                    expanded.append(cp_v)
+            except Exception:
+                self._add_log(f"⚠️ 复制失败，跳过: {os.path.basename(p)}", "warning")
         if variants > 1:
             self._add_log(f"🖼 本地处理：{len(paths)} 张 → ×{variants} 版本 = 共 {len(expanded)} 次 → {out_dir}", "info")
         else:

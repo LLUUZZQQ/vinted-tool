@@ -231,9 +231,12 @@ def write_log(content, level="info"):
     global LOG_FILE
     with _log_lock:
         if LOG_FILE and ENABLE_FILE_LOG:
-            import time as _time
-            with open(LOG_FILE, "a", encoding="utf-8") as f:
-                f.write(f"[{_time.strftime('%H:%M:%S')}] {content}\n")
+            try:
+                import time as _time
+                with open(LOG_FILE, "a", encoding="utf-8") as f:
+                    f.write(f"[{_time.strftime('%H:%M:%S')}] {content}\n")
+            except Exception:
+                pass  # 日志写入失败不应影响主流程
     try:
         print(content)
     except (UnicodeEncodeError, OSError):
@@ -2270,17 +2273,23 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
     TOTAL_IMAGES = 0
 
     base_root = CUSTOM_SAVE_ROOT.strip() or DEFAULT_SAVE_ROOT
-    if not os.path.exists(base_root):
-        os.makedirs(base_root)
-    _cleanup_old_logs(base_root, days=3)
-    ts = datetime.now().strftime("%Y%m%d_%H%M")
-    save_root = os.path.join(base_root, f"Crawl_{ts}")
-    os.makedirs(save_root, exist_ok=True)
-    SESSION_SAVE_ROOT = save_root
-    if ENABLE_FILE_LOG:
-        LOG_FILE = os.path.join(save_root, "Process_Log.txt")
-        with open(LOG_FILE, "w", encoding="utf-8") as f:
-            f.write("")
+    try:
+        if not os.path.exists(base_root):
+            os.makedirs(base_root)
+        _cleanup_old_logs(base_root, days=3)
+        ts = datetime.now().strftime("%Y%m%d_%H%M")
+        save_root = os.path.join(base_root, f"Crawl_{ts}")
+        os.makedirs(save_root, exist_ok=True)
+        SESSION_SAVE_ROOT = save_root
+        if ENABLE_FILE_LOG:
+            LOG_FILE = os.path.join(save_root, "Process_Log.txt")
+            with open(LOG_FILE, "w", encoding="utf-8") as f:
+                f.write("")
+    except Exception as e:
+        write_log(f"❌ 目录初始化失败：{e}", "error")
+        if _on_finished:
+            _on_finished(False)
+        return
 
     write_log("=" * 50)
     init_session_gps()

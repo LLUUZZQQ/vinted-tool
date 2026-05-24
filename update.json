@@ -1,1 +1,1 @@
-{"version":"3.6.4","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.6.4/ImageMAX.exe","changelog":"修复权限不足时配置文件写入崩溃问题。"}
+{"version":"3.6.5","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.6.5/ImageMAX.exe","changelog":"全面加固稳定性和异常容错，权限不足/磁盘满/文件占用等情况不再崩溃。"}
