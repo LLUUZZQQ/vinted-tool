@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -2059,9 +2059,9 @@ class VintedScraperGUI(QMainWindow):
             else:
                 new_h = self.height() - self._status_row_height
                 self._status_row_height = 0
-            self.resize(self.width(), new_h)
             if RELEASE_MODE:
                 self.setMaximumHeight(new_h)
+            self.resize(self.width(), new_h)
             if self._base_height == 0:
                 self._base_height = new_h
 
