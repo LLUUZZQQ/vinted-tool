@@ -3,6 +3,16 @@ const REPO = "LLUUZZQQ/vinted-tool";
 const RAW = `https://raw.githubusercontent.com/${REPO}/main`;
 const DL = `https://github.com/${REPO}/releases/download`;
 const AI_MODEL = "google/gemini-2.5-flash-image";
+
+// 最新版本信息（发布时更新此处）
+const LATEST_VERSION = "v3.6.10";
+const LATEST_CHANGELOG = `新增自定义裁剪与隐形水印功能
+
+自定义裁剪 — 四边百分比滑块灵活裁切、一键目标比例、快捷键预设、实时示意图预览
+
+隐形水印 — 自定义文字/透明度/位置、九宫格精准定位、开启状态一目了然
+
+稳定性优化 — 异常容错全面加固，权限不足/磁盘满等场景不再崩溃`;
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
 const RATE_LIMIT_WINDOW = 60; // 秒
@@ -44,15 +54,13 @@ export default {
       }
     }
 
-    // /update.json
+    // /update.json — 版本信息内嵌 Worker，不依赖 GitHub raw
     if (p === "/update.json") {
-      const r = await fetch(`${RAW}/update.json`);
-      if (!r.ok) return new Response("Unavailable", { status: 502 });
-      const d = await r.json();
-      // 下载走 Worker 代理（CDN 加速，国内用户也能下）
-      const v = d.version || "";
-      d.download_url = `https://${url.hostname}/download?v=${v.startsWith("v") ? v : `v${v}`}`;
-      return Response.json(d, { headers: { "Access-Control-Allow-Origin": "*" } });
+      return Response.json({
+        version: LATEST_VERSION,
+        changelog: LATEST_CHANGELOG,
+        download_url: `https://${url.hostname}/download?v=${LATEST_VERSION}`,
+      }, { headers: { "Access-Control-Allow-Origin": "*" } });
     }
 
     // /download — EXE（应用内更新用，兼容所有版本）
