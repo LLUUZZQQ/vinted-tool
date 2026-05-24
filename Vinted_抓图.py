@@ -211,8 +211,11 @@ def load_config():
 def save_config(settings):
     config = configparser.ConfigParser()
     config["SETTINGS"] = settings
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        config.write(f)
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            config.write(f)
+    except Exception:
+        pass
 
 
 def decimal_to_dms(decimal):
