@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -816,6 +816,10 @@ class CropDialog(QDialog):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+            # 如果焦点在 SpinBox 上，先提交其编辑值
+            fw = self.focusWidget()
+            if isinstance(fw, QSpinBox):
+                fw.clearFocus()
             self._on_ok()
         elif event.key() == Qt.Key_Escape:
             self.reject()
@@ -1567,6 +1571,7 @@ class VintedScraperGUI(QMainWindow):
         csg.addWidget(self.lbl_crop_summary)
         self.btn_crop_clear = QLabel("✕")
         self.btn_crop_clear.setAttribute(Qt.WA_Hover, True)
+        self.btn_crop_clear.setFocusPolicy(Qt.TabFocus)
         self.btn_crop_clear.setCursor(Qt.PointingHandCursor)
         self.btn_crop_clear.setToolTip("清除裁剪")
         self.btn_crop_clear.setStyleSheet("QLabel{font-size:10px;color:#ef4444;background:transparent;} QLabel:hover{color:#dc2626;font-weight:bold;}")
@@ -1592,6 +1597,7 @@ class VintedScraperGUI(QMainWindow):
         wsg.addWidget(self.lbl_watermark_summary)
         self.btn_watermark_clear = QLabel("✕")
         self.btn_watermark_clear.setAttribute(Qt.WA_Hover, True)
+        self.btn_watermark_clear.setFocusPolicy(Qt.TabFocus)
         self.btn_watermark_clear.setCursor(Qt.PointingHandCursor)
         self.btn_watermark_clear.setToolTip("关闭水印")
         self.btn_watermark_clear.setStyleSheet("QLabel{font-size:10px;color:#ef4444;background:transparent;} QLabel:hover{color:#dc2626;font-weight:bold;}")
@@ -2278,19 +2284,16 @@ class VintedScraperGUI(QMainWindow):
         orig_dir = os.path.join(out_dir, "_orig")
         os.makedirs(orig_dir, exist_ok=True)
         expanded = []
-        self._deep_copies = []
         for p in paths:
             base, ext = os.path.splitext(os.path.basename(p))
             cp = os.path.join(out_dir, f"{base}{ext}")
             _shutil.copy2(p, cp)
             _shutil.copy2(p, os.path.join(orig_dir, f"{base}{ext}"))  # 原图备份
             expanded.append(cp)
-            self._deep_copies.append(cp)
             for v in range(2, variants + 1):
                 cp_v = os.path.join(out_dir, f"{base}_v{v}{ext}")
                 _shutil.copy2(p, cp_v)
                 expanded.append(cp_v)
-                self._deep_copies.append(cp_v)
         if variants > 1:
             self._add_log(f"🖼 本地处理：{len(paths)} 张 → ×{variants} 版本 = 共 {len(expanded)} 次 → {out_dir}", "info")
         else:
@@ -2308,7 +2311,6 @@ class VintedScraperGUI(QMainWindow):
         self._local_worker.start()
 
     def _on_local_finished(self, ok, stopped=False):
-        self._deep_copies = []
         self._local_worker = None
         self._set_ui_running(False)
         self.progress_bar.setMaximum(100)

@@ -3,6 +3,25 @@ const REPO = "LLUUZZQQ/vinted-tool";
 const RAW = `https://raw.githubusercontent.com/${REPO}/main`;
 const DL = `https://github.com/${REPO}/releases/download`;
 const AI_MODEL = "google/gemini-2.5-flash-image";
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+const RATE_LIMIT_WINDOW = 60; // 秒
+const RATE_LIMIT_MAX = 30;    // 窗口内最大请求数
+
+// 简易内存速率限制（Worker 实例级，重启清零）
+const rateMap = new Map();
+function checkRateLimit(clientIp) {
+  const now = Math.floor(Date.now() / 1000);
+  const entry = rateMap.get(clientIp) || { count: 0, reset: now + RATE_LIMIT_WINDOW };
+  if (now > entry.reset) { entry.count = 0; entry.reset = now + RATE_LIMIT_WINDOW; }
+  entry.count++;
+  rateMap.set(clientIp, entry);
+  // 定期清理过期条目
+  if (rateMap.size > 5000) {
+    for (const [ip, e] of rateMap) { if (now > e.reset) rateMap.delete(ip); }
+  }
+  return entry.count <= RATE_LIMIT_MAX;
+}
 
 async function getVersion() {
   const r = await fetch(`${RAW}/update.json`);
@@ -16,6 +35,14 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const p = url.pathname;
+    const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
+
+    // 速率限制（跳过静态资源）
+    if (!p.startsWith("/download") && !p.startsWith("/dl")) {
+      if (!checkRateLimit(clientIp)) {
+        return new Response("Too Many Requests", { status: 429 });
+      }
+    }
 
     // /update.json
     if (p === "/update.json") {
@@ -45,10 +72,11 @@ export default {
       const hwid = url.searchParams.get("hwid");
       if (!hwid) return new Response("Missing hwid", { status: 400 });
 
-      // POST: 充值
+      // POST: 充值（密钥通过 Bearer header 传递）
       if (request.method === "POST") {
         const add = parseInt(url.searchParams.get("add") || "0");
-        const secret = url.searchParams.get("secret") || "";
+        const auth = request.headers.get("Authorization") || "";
+        const secret = auth.startsWith("Bearer ") ? auth.slice(7) : "";
         if (!env.ADMIN_SECRET || secret !== env.ADMIN_SECRET) return new Response("Unauthorized", { status: 403 });
         const key = `credits_${hwid}`;
         const current = parseInt(await env.VTMAX_CREDITS.get(key) || "0");
@@ -74,6 +102,14 @@ export default {
           return new Response(JSON.stringify({ error: "Missing image or hwid" }), { status: 400 });
         }
 
+        // 验证图片类型和大小
+        if (!ALLOWED_IMAGE_TYPES.includes(imageFile.type)) {
+          return new Response(JSON.stringify({ error: "不支持的图片格式，仅支持 JPG/PNG/WebP/AVIF" }), { status: 400 });
+        }
+        if (imageFile.size > MAX_IMAGE_SIZE) {
+          return new Response(JSON.stringify({ error: "图片过大，最大支持 10MB" }), { status: 413 });
+        }
+
         // 检查余额
         const key = `credits_${hwid}`;
         const credits = parseInt(await env.VTMAX_CREDITS.get(key) || "0");
@@ -81,9 +117,15 @@ export default {
           return Response.json({ error: "余额不足，请联系管理员充值" }, { status: 402 });
         }
 
-        // 图片转 base64
+        // 图片转 base64（分块转换，避免大文件 OOM）
         const imageBytes = await imageFile.arrayBuffer();
-        const b64 = btoa(String.fromCharCode(...new Uint8Array(imageBytes)));
+        const uint8 = new Uint8Array(imageBytes);
+        let b64 = "";
+        const chunk = 8192;
+        for (let i = 0; i < uint8.length; i += chunk) {
+          b64 += String.fromCharCode(...uint8.slice(i, i + chunk));
+        }
+        b64 = btoa(b64);
         const mimeType = imageFile.type || "image/jpeg";
         const dataUrl = `data:${mimeType};base64,${b64}`;
 

@@ -1,1 +1,1 @@
-{"version":"3.6.1","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.6.1/ImageMAX.exe","changelog":"状态行合并优化、窗口高度增加、布局不重叠。自定义裁剪+隐形水印+EXIF面板+安全修复。"}
+{"version":"3.6.2","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.6.2/ImageMAX.exe","changelog":"安全加固：Worker速率限制+图片验证+AES随机nonce+密钥Header传递；更新下载重试保护+路径转义；多项稳健性修复。"}

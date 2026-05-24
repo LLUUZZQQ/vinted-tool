@@ -8,6 +8,7 @@ import sys
 import json
 import hashlib
 import urllib.request
+import urllib.error
 import subprocess
 
 # 更新检查 URL（替换为你实际的文件地址）
@@ -15,7 +16,7 @@ import subprocess
 UPDATE_URL = "https://vt-proxy.vtmax.workers.dev/update.json"
 
 # 当前版本
-CURRENT_VERSION = "3.6.1"
+CURRENT_VERSION = "3.6.2"
 
 
 def _fetch_json(url, timeout=10):
@@ -23,8 +24,12 @@ def _fetch_json(url, timeout=10):
         req = urllib.request.Request(url, headers={"User-Agent": "ImageMAX/1.0"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))
-    except Exception:
-        return None
+    except urllib.error.URLError as e:
+        return {"_error": f"网络错误：{e.reason}"}
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return {"_error": "响应格式异常"}
+    except Exception as e:
+        return {"_error": f"检查失败：{e}"}
 
 
 def check_for_update():
@@ -83,6 +88,11 @@ def download_update(download_url, progress_callback=None):
                 return None
         return tmp_path
     except Exception as e:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
         return None
 
 
@@ -95,19 +105,31 @@ def apply_update(new_exe_path):
     current_exe = sys.executable
     backup = os.path.join(exe_dir, "_update.old")
     bat_path = os.path.join(exe_dir, "_update.bat")
+    # 转义路径中的特殊字符（延迟变量 ! 和转义符 ^）
+    safe_current = current_exe.replace("^", "^^").replace("!", "^^!")
+    safe_backup = backup.replace("^", "^^").replace("!", "^^!")
+    safe_new = new_exe_path.replace("^", "^^").replace("!", "^^!")
 
     bat = f"""@echo off
 chcp 65001 >nul
+set retry=0
 echo 正在更新...
 timeout /t 2 /nobreak >nul
 :retry
-del "{backup}" 2>nul
-rename "{current_exe}" "_update.old" >nul 2>&1
-copy /y "{new_exe_path}" "{current_exe}" >nul 2>&1
-if exist "{current_exe}" (
+set /a retry+=1
+if %retry% gtr 5 (
+    echo 更新失败，请重启软件后重试
+    pause
+    del "{safe_backup}" 2>nul
+    exit /b 1
+)
+del "{safe_backup}" 2>nul
+rename "{safe_current}" "_update.old" >nul 2>&1
+copy /y "{safe_new}" "{safe_current}" >nul 2>&1
+if exist "{safe_current}" (
     echo 更新完成，正在启动...
-    del "{new_exe_path}" 2>nul
-    start "" "{current_exe}"
+    del "{safe_new}" 2>nul
+    start "" "{safe_current}"
     del "%~f0" 2>nul
     exit
 )

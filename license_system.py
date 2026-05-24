@@ -110,7 +110,7 @@ def get_hwid():
 
 _LICENSE_DIR = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "ImageMAX")
 _LICENSE_PATH = os.path.join(_LICENSE_DIR, "license.dat")
-_LICENSE_NONCE = b"vinted_scraper_v3_2026"
+
 
 
 def _derive_aes_key(hwid_raw):
@@ -119,14 +119,14 @@ def _derive_aes_key(hwid_raw):
 
 
 def _encrypt_license(data_dict, hwid_raw):
-    """加密 license 数据 → 写入 license.dat"""
+    """加密 license 数据 → 写入 license.dat（nonce 随机，前置写入）"""
     aesgcm = AESGCM(_derive_aes_key(hwid_raw))
-    nonce = hashlib.sha256(_LICENSE_NONCE + hwid_raw.encode("utf-8")).digest()[:12]
+    nonce = os.urandom(12)
     plaintext = json.dumps(data_dict, sort_keys=True).encode("utf-8")
     ciphertext = aesgcm.encrypt(nonce, plaintext, None)
     os.makedirs(_LICENSE_DIR, exist_ok=True)
     with open(_LICENSE_PATH, "wb") as f:
-        f.write(ciphertext)
+        f.write(nonce + ciphertext)
 
 
 def _decrypt_license(hwid_raw):
@@ -135,9 +135,11 @@ def _decrypt_license(hwid_raw):
         return None
     try:
         with open(_LICENSE_PATH, "rb") as f:
-            ciphertext = f.read()
+            data = f.read()
+        if len(data) < 12:
+            return None
+        nonce, ciphertext = data[:12], data[12:]
         aesgcm = AESGCM(_derive_aes_key(hwid_raw))
-        nonce = hashlib.sha256(_LICENSE_NONCE + hwid_raw.encode("utf-8")).digest()[:12]
         plaintext = aesgcm.decrypt(nonce, ciphertext, None)
         return json.loads(plaintext.decode("utf-8"))
     except Exception:

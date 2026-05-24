@@ -18,7 +18,7 @@ from PIL import Image, ImageEnhance, ImageFilter, ImageDraw, ImageFont
 from tqdm import tqdm
 from time import sleep
 import configparser
-from datetime import datetime
+from datetime import datetime, timedelta
 import win32api
 import win32con
 import win32com.client
@@ -219,7 +219,7 @@ def decimal_to_dms(decimal):
     degrees = int(abs(decimal))
     minutes = int((abs(decimal) - degrees) * 60)
     seconds = round(((abs(decimal) - degrees - minutes/60) * 3600) * 100, 2)
-    return (degrees, 1), (minutes, 1), (int(seconds * 100), 100)
+    return (degrees, 1), (minutes, 1), (round(seconds * 100), 100)
 
 
 ENABLE_FILE_LOG = True  # GUI 可设为 False 关闭文件日志
@@ -912,7 +912,6 @@ def process_image(image_path, skip_gps=False):
         if not skip_gps:
             try:
                 # 会话级 EXIF：同批次共享设备、曝光参数，时间递增
-                from datetime import timedelta
                 if SESSION_EXIF:
                     make, model, software, dev_model, exposure, fnum, iso, lens = SESSION_EXIF
                 else:
@@ -988,7 +987,7 @@ def process_image(image_path, skip_gps=False):
                 write_log(f"EXIF地理信息写入异常: {e}", "warning")
 
         # 机模画幅匹配：轻量裁切 + 阈值保护
-        if DEVICE_CROP_ENABLED and not skip_gps:
+        if DEVICE_CROP_ENABLED:
             device = SELECTED_DEVICE if SELECTED_DEVICE != "随机" else model
             ratio = _get_device_ratio(device)
             if ratio:
@@ -1019,7 +1018,7 @@ def process_image(image_path, skip_gps=False):
                             img = img.crop((0, trim, ow, oh - trim))
 
         # 自定义裁剪：按用户设定的四边百分比裁切
-        if CUSTOM_CROP_ENABLED and not skip_gps:
+        if CUSTOM_CROP_ENABLED:
             img = _custom_crop_pct(img, CROP_TOP_PCT, CROP_BOTTOM_PCT, CROP_LEFT_PCT, CROP_RIGHT_PCT)
 
         # EXIF 缩略图 + dump（置於機模裁切之後，確保縮略圖與主圖一致）
@@ -1083,23 +1082,28 @@ def process_image(image_path, skip_gps=False):
         # 深度模式：在重命名前计算与原图的指纹差异度
         _score = None
         if DEEP_ANTI_DUPLICATE_ENABLED:
+            _orig = _out = None
             try:
                 _orig = Image.open(image_path)
                 _out = Image.open(temp_path)
                 _os = np.array(_orig.resize((32, 32), Image.BICUBIC)).astype(np.float32)
                 _ds = np.array(_out.resize((32, 32), Image.BICUBIC)).astype(np.float32)
                 _score = int(np.abs(_os - _ds).mean() * 100 / 255)
-                _orig.close()
-                _out.close()
             except Exception:
                 pass
+            finally:
+                if _orig: _orig.close()
+                if _out: _out.close()
 
         orig_base = os.path.splitext(os.path.basename(image_path))[0]
         rand6 = ''.join(random.choices(string.ascii_letters + string.digits, k=6))
         new_filename = f"{orig_base}_d{_score}_{rand6}.jpg" if _score is not None else f"{orig_base}_{rand6}.jpg"
         new_path = os.path.join(os.path.dirname(image_path), new_filename)
         os.replace(temp_path, new_path)
-        os.remove(image_path)
+        try:
+            os.remove(image_path)
+        except OSError:
+            pass
 
         file_size = round(os.path.getsize(new_path) / 1024, 2)
         if _score is not None:
@@ -2476,7 +2480,6 @@ def init_session_exif():
     lens = f"f/{random.uniform(1.8, 5.6):.1f} {random.randint(12, 200)}mm"
     SESSION_EXIF = (make, model, software, dev_model, exposure, fnum, iso, lens)
     # 随机一个过去的时间作为拍摄起点（最近30天内）
-    from datetime import datetime, timedelta
     SESSION_DT_BASE = datetime.now() - timedelta(days=random.randint(0, 30),
                                                    hours=random.randint(0, 23),
                                                    minutes=random.randint(0, 59))
