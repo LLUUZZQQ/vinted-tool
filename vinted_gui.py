@@ -20,7 +20,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1481,14 +1481,14 @@ class VintedScraperGUI(QMainWindow):
                           self.status_label.setText(f"本地处理中... {c}/{t}"))
         )
         self._local_worker.finished_signal.connect(self._on_local_finished)
-        self.btn_local.setEnabled(False)
+        self._set_ui_running(True)
         self.status_label.setText("本地处理中...")
         self._local_worker.start()
 
     def _on_local_finished(self, ok):
         self._deep_copies = []
         self._local_worker = None
-        self.btn_local.setEnabled(True)
+        self._set_ui_running(False)
         self.progress_bar.setMaximum(100)
         self.progress_bar.setValue(0)
         self.status_label.setText(f"本地处理完成，成功 {ok} 张")

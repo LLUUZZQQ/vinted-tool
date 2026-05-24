@@ -1,1 +1,1 @@
-{"version":"3.5.8","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.5.8/ImageMAX.exe","changelog":"新增 Vinted、Depop、Vestiaire Collective、Poshmark、Grailed、Mercari、Wallapop 七平台采集支持，粘贴链接自动识别。功能体验全面优化，处理更稳定流畅。"}
+{"version":"3.5.9","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.5.9/ImageMAX.exe","changelog":"修复本地处理时配置开关仍可切换的问题，处理体验更稳定。"}
