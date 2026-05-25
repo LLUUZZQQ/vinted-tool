@@ -939,27 +939,27 @@ def process_image(image_path, skip_gps=False):
             except Exception as e:
                 write_log(f"⚠️ 水印添加跳过：{e}", "warning")
 
+        # ---- 设备参数解包（始终需要，供画幅匹配和JPEG压缩使用） ----
+        if SESSION_EXIF:
+            make, model, software, dev_model, exposure, fnum, iso, lens = SESSION_EXIF
+        else:
+            models = list(DEVICE_INFO_MAP.keys())
+            dev_model = random.choice(models)
+            make, model, software = DEVICE_INFO_MAP[dev_model]
+            exposure = (random.randint(1, 200), 1000)
+            fnum = (random.randint(16, 28), 10)
+            iso = random.randint(50, 1600)
+            lens = f"f/{random.uniform(1.8, 5.6):.1f} {random.randint(12, 200)}mm"
+        if SESSION_DT_BASE:
+            SESSION_DT_BASE += timedelta(minutes=random.randint(1, 5))
+            dt = SESSION_DT_BASE.strftime("%Y:%m:%d %H:%M:%S")
+        else:
+            dt = datetime.now().strftime("%Y:%m:%d %H:%M:%S")
+
         # ---- EXIF 地理信息 ----
         exif_bytes = b""
         if not skip_gps and not STRIP_METADATA_ENABLED:
             try:
-                # 会话级 EXIF：同批次共享设备、曝光参数，时间递增
-                if SESSION_EXIF:
-                    make, model, software, dev_model, exposure, fnum, iso, lens = SESSION_EXIF
-                else:
-                    models = list(DEVICE_INFO_MAP.keys())
-                    dev_model = random.choice(models)
-                    make, model, software = DEVICE_INFO_MAP[dev_model]
-                    exposure = (random.randint(1, 200), 1000)
-                    fnum = (random.randint(16, 28), 10)
-                    iso = random.randint(50, 1600)
-                    lens = f"f/{random.uniform(1.8, 5.6):.1f} {random.randint(12, 200)}mm"
-                if SESSION_DT_BASE:
-                    SESSION_DT_BASE += timedelta(minutes=random.randint(1, 5))
-                    dt = SESSION_DT_BASE.strftime("%Y:%m:%d %H:%M:%S")
-                else:
-                    dt = datetime.now().strftime("%Y:%m:%d %H:%M:%S")
-
                 exif_dict = {"0th": {}, "Exif": {}, "GPS": {}}
                 exif_dict["0th"] = {
                     piexif.ImageIFD.Make: make,
