@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1647,7 +1647,7 @@ class VintedScraperGUI(QMainWindow):
         # 行 3c：清除元数据
         r3c2 = QHBoxLayout()
         r3c2.setSpacing(10)
-        self.chk_strip_metadata = _add_chk(r3c2, "清除元数据", "彻底剥离所有拍摄信息，模拟截图效果")
+        self.chk_strip_metadata = _add_chk(r3c2, "清除元数据", "彻底剥离所有拍摄信息，纯净输出")
         r3c2.addStretch()
         lo.addLayout(r3c2)
 

@@ -188,7 +188,7 @@ DEEP_SPATIAL_BRIGHTNESS_STRENGTH = (0.004, 0.01)
 DEEP_WARMTH_RANGE = (-0.10, 0.10)
 DEEP_GAMMA_RANGE = (0.93, 1.07)
 DEEP_LENS_DISTORTION_RANGE = (-0.010, 0.010)   # 镜头畸变加强以补偿去掉仿射剪切
-STRIP_METADATA_ENABLED = False  # 清除所有元数据，模拟截图效果
+STRIP_METADATA_ENABLED = False  # 清除所有元数据，纯净输出
 
 # 设备 JPEG 压缩指纹：厂商 → (quality_min, quality_max, preferred_subsampling)
 DEVICE_JPEG_PROFILE = {
