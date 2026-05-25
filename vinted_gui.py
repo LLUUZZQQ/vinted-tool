@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -2292,10 +2292,13 @@ class VintedScraperGUI(QMainWindow):
             dlg = CompletionDialog(_tr("采集完成"), stats, elapsed,
                                    self._last_output_dir, self)
             dlg.exec()
-            if dlg.action == 'preview':
-                self._show_preview()
-            elif dlg.action == 'open':
-                self._open_save_dir()
+            try:
+                if dlg.action == 'preview':
+                    self._show_preview()
+                elif dlg.action == 'open':
+                    self._open_save_dir()
+            except Exception as e:
+                QMessageBox.warning(self, "错误", f"操作失败：{e}")
 
     def _update_stats_display(self):
         self.stats_label.setText(f"累计 {self._total_tasks} 次采集 · {self._total_images} 张图像")
@@ -2405,6 +2408,12 @@ class VintedScraperGUI(QMainWindow):
             self._add_log("⚠️ 所选文件夹中没有图片文件", "warning")
 
     def _run_local_worker(self, paths):
+        try:
+            self._run_local_worker_impl(paths)
+        except Exception as e:
+            QMessageBox.warning(self, "处理失败", f"本地处理启动失败：{e}")
+
+    def _run_local_worker_impl(self, paths):
         if not self._confirm_crop_if_needed("本地处理"):
             return
         import shutil as _shutil
@@ -2471,10 +2480,13 @@ class VintedScraperGUI(QMainWindow):
             dlg = CompletionDialog("处理完成", stats, elapsed,
                                    self._last_output_dir, self)
             dlg.exec()
-            if dlg.action == 'preview':
-                self._show_preview()
-            elif dlg.action == 'open':
-                self._open_save_dir()
+            try:
+                if dlg.action == 'preview':
+                    self._show_preview()
+                elif dlg.action == 'open':
+                    self._open_save_dir()
+            except Exception as e:
+                QMessageBox.warning(self, "错误", f"操作失败：{e}")
 
     def _show_help(self):
         dlg = QDialog(self)
