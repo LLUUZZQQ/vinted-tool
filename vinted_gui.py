@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -2340,6 +2340,7 @@ class VintedScraperGUI(QMainWindow):
         self.chk_deep_anti_duplicate.setEnabled(not running)
         self.combo_variants.setEnabled(not running)
         self.combo_device.setEnabled(not running)
+        self.chk_strip_metadata.setEnabled(not running)
         self.btn_local.setEnabled(not running)
         self.btn_ai_bg.setEnabled(not running)
         if not running:
@@ -2571,6 +2572,14 @@ li { margin:2px 0; list-style:none; }
 <li style='color:#888;margin-left:16px;'>开启后按钮变绿，状态行显示详细裁切参数，可<span class=hl>一键清除</span></li>
 <li style='color:#f59e0b;font-size:12px;margin-left:16px;'>⚠ 自定义裁剪与画幅匹配互斥，开启一个会自动关闭另一个</li>
 <li style='color:#f59e0b;font-size:12px;margin-left:16px;'>⚠ 处理前会弹出确认提示，避免误操作</li>
+
+	<li><b>清除元数据</b></li>
+	<li style='color:#888;margin-left:16px;'>勾选后输出图片<span class=hl>不包含任何拍摄信息</span>（设备型号/GPS/拍摄时间等全部剥离）</li>
+	<li style='color:#888;margin-left:16px;'>像素级处理（旋转、畸变、噪点、水印、裁剪等）<span class=imp>照常执行</span></li>
+	<li style='color:#888;margin-left:16px;'>适用于需要纯净输出、规避元数据检测的场景，无需额外配置</li>
+	<li style='color:#888;margin-left:16px;'>开启后，设备选择和拍摄地理设置<span class=imp>仅用于画幅匹配和压缩指纹</span>，不会写入图片</li>
+	<li style='color:#888;margin-left:16px;'>与所有像素级功能（AI指纹重构、深度防重、水印、裁剪）<span class=hl>完全兼容</span>，无冲突</li>
+	<li style='color:#f59e0b;font-size:12px;margin-left:16px;'>⚠ 开启后EXIF/GPS信息不再注入，如需保留拍摄信息请取消勾选</li>
 
 <h2>本地处理</h2>
 <li>拖入图片或文件夹到窗口，或点击 <b>本地处理</b> 选择</li>
