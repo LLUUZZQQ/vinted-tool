@@ -5,7 +5,7 @@ const DL = `https://github.com/${REPO}/releases/download`;
 const AI_MODEL = "google/gemini-2.5-flash-image";
 
 // 最新版本信息（发布时更新此处）
-const LATEST_VERSION = "3.6.17";
+const LATEST_VERSION = "3.6.18";
 const LATEST_CHANGELOG = `修复GPS坐标异常 · 补充EXIF标准字段 · 新增清除元数据模式 · 设备匹配JPEG压缩
 
 清除元数据 — 彻底剥离所有拍摄信息，纯净输出

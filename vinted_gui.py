@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -2276,6 +2276,14 @@ class VintedScraperGUI(QMainWindow):
         self._last_output_dir = backend.SESSION_SAVE_ROOT if backend.SESSION_SAVE_ROOT and os.path.isdir(backend.SESSION_SAVE_ROOT) else None
         self.status_label.setText(_tr("状态：已停止") if stopped else "处理完成")
         _session_images = backend.TOTAL_IMAGES
+        # 诊断日志
+        try:
+            _diag = os.path.join(os.path.expanduser("~"), "Desktop", "ImageMAX_diag.txt")
+            with open(_diag, "a", encoding="utf-8") as _df:
+                import time as _t
+                _df.write(f"[{_t.strftime('%H:%M:%S')}] _on_task_finished TOTAL_IMAGES={backend.TOTAL_IMAGES} SESSION_SAVE_ROOT={backend.SESSION_SAVE_ROOT} TOTAL_TASKS={backend.TOTAL_TASKS} last_output_dir={self._last_output_dir}\n")
+        except Exception:
+            pass
         # 兜底：如果计数器为 0，直接从输出目录统计实际文件数
         if _session_images == 0 and self._last_output_dir:
             try:
