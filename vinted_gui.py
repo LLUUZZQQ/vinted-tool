@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -2276,6 +2276,12 @@ class VintedScraperGUI(QMainWindow):
         self._last_output_dir = backend.SESSION_SAVE_ROOT if backend.SESSION_SAVE_ROOT and os.path.isdir(backend.SESSION_SAVE_ROOT) else None
         self.status_label.setText(_tr("状态：已停止") if stopped else "处理完成")
         _session_images = backend.TOTAL_IMAGES
+        # 兜底：如果计数器为 0，直接从输出目录统计实际文件数
+        if _session_images == 0 and self._last_output_dir:
+            try:
+                _session_images = len([f for f in os.listdir(self._last_output_dir) if f.lower().endswith('.jpg') and not f.startswith('.')])
+            except Exception:
+                pass
         if not stopped:
             self._total_tasks += backend.TOTAL_TASKS
             self._total_images += _session_images
@@ -2620,10 +2626,10 @@ li { margin:2px 0; list-style:none; }
         recent_dir = getattr(self, '_last_output_dir', None)
         if recent_dir and os.path.isdir(recent_dir):
             search_dir = recent_dir
-            jpgs = sorted(glob.glob(os.path.join(search_dir, "*.jpg")))
+            jpgs = sorted(glob.glob(os.path.join(search_dir, "*.jpg")) + glob.glob(os.path.join(search_dir, "*", "*.jpg")))
         else:
             search_dir = self._save_path if self._save_path and os.path.isdir(self._save_path) else "."
-            jpgs = sorted(glob.glob(os.path.join(search_dir, "*.jpg")) + glob.glob(os.path.join(search_dir, "Processed_*", "*.jpg")))
+            jpgs = sorted(glob.glob(os.path.join(search_dir, "*.jpg")) + glob.glob(os.path.join(search_dir, "*", "*.jpg")) + glob.glob(os.path.join(search_dir, "Processed_*", "*.jpg")))
         save_dir = search_dir
         if not jpgs:
             QMessageBox.information(self, "预览", "暂无可预览的图片")
