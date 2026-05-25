@@ -1182,7 +1182,7 @@ def process_image(image_path, skip_gps=False):
         write_log(f"❌ 图片处理失败 | 路径：{image_path} | 错误：{e}", "error")
         # 写入桌面诊断文件（发布版无日志面板，用于排查问题）
         try:
-            diag_path = os.path.join(os.path.expanduser("~"), "Desktop", "ImageMAX_error.txt")
+            diag_path = os.path.join(os.path.expanduser("~"), "C:/", "ImageMAX_error.txt")
             with open(diag_path, "a", encoding="utf-8") as _df:
                 import time as _t
                 _df.write(f"[{_t.strftime('%Y-%m-%d %H:%M:%S')}] {image_path}\n{e}\n{err_detail}\n---\n")
@@ -2321,7 +2321,7 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
     _start = _time.time()
 
     # 诊断日志
-    _diag = os.path.join(os.path.expanduser("~"), "Desktop", "ImageMAX_diag.txt")
+    _diag = os.path.join(os.path.expanduser("~"), "C:/", "ImageMAX_diag.txt")
     def _dlog(msg):
         try:
             with open(_diag, "a", encoding="utf-8") as _df:
