@@ -19,6 +19,7 @@ from tqdm import tqdm
 from time import sleep
 import configparser
 from datetime import datetime, timedelta
+import re
 import win32api
 import win32con
 import win32com.client
@@ -187,6 +188,31 @@ DEEP_SPATIAL_BRIGHTNESS_STRENGTH = (0.004, 0.01)
 DEEP_WARMTH_RANGE = (-0.10, 0.10)
 DEEP_GAMMA_RANGE = (0.93, 1.07)
 DEEP_LENS_DISTORTION_RANGE = (-0.010, 0.010)   # 镜头畸变加强以补偿去掉仿射剪切
+STRIP_METADATA_ENABLED = False  # 清除所有元数据，模拟截图效果
+
+# 设备 JPEG 压缩指纹：厂商 → (quality_min, quality_max, preferred_subsampling)
+DEVICE_JPEG_PROFILE = {
+    "Apple": (92, 98, "4:2:0"),
+    "Samsung": (90, 96, "4:2:0"),
+    "Google": (92, 98, "4:2:0"),
+    "HUAWEI": (90, 95, "4:2:0"),
+    "Xiaomi": (88, 95, "4:2:0"),
+    "OnePlus": (90, 96, "4:2:0"),
+    "Sony": (95, 100, "4:2:2"),
+    "OPPO": (90, 95, "4:2:0"),
+    "Motorola": (88, 93, "4:2:0"),
+    "Canon": (95, 100, "4:2:2"),
+    "Nikon": (95, 100, "4:2:2"),
+    "Fujifilm": (95, 100, "4:2:2"),
+    "Leica": (95, 100, "4:4:4"),
+    "Panasonic": (92, 98, "4:2:2"),
+    "DJI": (90, 95, "4:2:0"),
+    "GoPro": (88, 93, "4:2:0"),
+}
+
+def _get_device_jpeg(make):
+    """根据设备厂商返回匹配的 JPEG 压缩参数"""
+    return DEVICE_JPEG_PROFILE.get(make, (90, 96, "4:2:0"))
 
 # 回调函数引用（由 GUI 层设置）
 _on_log = None          # (content: str, level: str) -> None
@@ -221,8 +247,8 @@ def save_config(settings):
 def decimal_to_dms(decimal):
     degrees = int(abs(decimal))
     minutes = int((abs(decimal) - degrees) * 60)
-    seconds = round(((abs(decimal) - degrees - minutes/60) * 3600) * 100, 2)
-    return (degrees, 1), (minutes, 1), (round(seconds * 100), 100)
+    seconds = (abs(decimal) - degrees - minutes/60) * 3600
+    return (degrees, 1), (minutes, 1), (int(round(seconds * 100)), 100)
 
 
 ENABLE_FILE_LOG = True  # GUI 可设为 False 关闭文件日志
@@ -913,9 +939,9 @@ def process_image(image_path, skip_gps=False):
             except Exception as e:
                 write_log(f"⚠️ 水印添加跳过：{e}", "warning")
 
-        # ---- EXIF 地理信息（本地防重跳过） ----
+        # ---- EXIF 地理信息 ----
         exif_bytes = b""
-        if not skip_gps:
+        if not skip_gps and not STRIP_METADATA_ENABLED:
             try:
                 # 会话级 EXIF：同批次共享设备、曝光参数，时间递增
                 if SESSION_EXIF:
@@ -948,7 +974,25 @@ def process_image(image_path, skip_gps=False):
                     piexif.ExifIFD.ISOSpeedRatings: iso,
                     piexif.ExifIFD.DateTimeOriginal: dt,
                     piexif.ExifIFD.LensModel: lens,
+                    piexif.ExifIFD.ExifVersion: b"0230",
+                    piexif.ExifIFD.FlashpixVersion: b"0100",
+                    piexif.ExifIFD.ColorSpace: 1,
+                    piexif.ExifIFD.ComponentsConfiguration: b"\x01\x02\x03\x00",
+                    piexif.ExifIFD.SceneType: b"\x01",
+                    piexif.ExifIFD.Flash: 0,
+                    piexif.ExifIFD.SensingMethod: 2,
+                    piexif.ExifIFD.WhiteBalance: 0,
+                    piexif.ExifIFD.DigitalZoomRatio: (0, 0),
+                    piexif.ExifIFD.Sharpness: 0,
                 }
+                # 从 lens 字符串解析焦距
+                try:
+                    m = re.search(r'(\d+)mm', lens)
+                    if m:
+                        fl = int(m.group(1))
+                        exif_dict["Exif"][piexif.ExifIFD.FocalLength] = (fl, 1)
+                except Exception:
+                    pass
 
                 final_lat, final_lon, final_city = None, None, None
                 if SESSION_GPS:
@@ -985,6 +1029,7 @@ def process_image(image_path, skip_gps=False):
                     lon_dms = decimal_to_dms(final_lon)
                     exif_dict["GPS"][piexif.GPSIFD.GPSLongitudeRef] = 'E' if final_lon >= 0 else 'W'
                     exif_dict["GPS"][piexif.GPSIFD.GPSLongitude] = lon_dms
+                    exif_dict["GPS"][piexif.GPSIFD.GPSDateStamp] = dt[:10]
                     loc = f"Shooting Location: {SELECTED_COUNTRY} {final_city}".encode("utf-8")
                     exif_dict["Exif"][piexif.ExifIFD.UserComment] = b"ASCII\x00\x00\x00" + loc
                     write_log(f"📍 已写入地理信息：{SELECTED_COUNTRY} {final_city} | {final_lat:.6f}, {final_lon:.6f}")
@@ -1029,8 +1074,11 @@ def process_image(image_path, skip_gps=False):
 
         # EXIF 缩略图 + dump（置於機模裁切之後，確保縮略圖與主圖一致）
         exif_bytes = b""
-        if not skip_gps:
+        if not skip_gps and not STRIP_METADATA_ENABLED:
             try:
+                # 写入最终图像尺寸
+                exif_dict["Exif"][piexif.ExifIFD.PixelXDimension] = img.width
+                exif_dict["Exif"][piexif.ExifIFD.PixelYDimension] = img.height
                 if ADVANCED_ANTI_DETECT_ENABLED:
                     try:
                         thumb = img.copy()
@@ -1057,7 +1105,7 @@ def process_image(image_path, skip_gps=False):
             except Exception as e:
                 write_log(f"PNG中间转换跳过: {e}", "warning")
 
-        # JPEG 保存策略（会话级一致性）
+        # JPEG 保存策略（会话级一致性 + 设备指纹匹配）
         if SESSION_JPEG:
             save_quality, subsampling = SESSION_JPEG
         elif LOSSLESS_ENABLED:
@@ -1070,8 +1118,14 @@ def process_image(image_path, skip_gps=False):
             save_quality = random.randint(*DEEP_JPEG_QUALITY_RANGE)
             subsampling = random.choice(SUBSAMPLING_OPTIONS)
         else:
-            save_quality = random.randint(*JPEG_QUALITY_RANGE)
-            subsampling = random.choice(SUBSAMPLING_OPTIONS)
+            # 设备匹配：根据厂商选择典型压缩指纹
+            if SESSION_EXIF:
+                make = SESSION_EXIF[0]
+                qmin, qmax, pref_sub = _get_device_jpeg(make)
+            else:
+                qmin, qmax, pref_sub = 90, 96, "4:2:0"
+            save_quality = random.randint(qmin, qmax)
+            subsampling = pref_sub
 
         temp_path = image_path + "_processed.jpg"
         save_kwargs = {"format": "JPEG", "quality": save_quality, "subsampling": subsampling, "optimize": True}
@@ -2292,7 +2346,8 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
         return
 
     write_log("=" * 50)
-    init_session_gps()
+    if not STRIP_METADATA_ENABLED:
+        init_session_gps()
     init_session_exif()
     init_session_jpeg()
     write_log("图像重构引擎启动", "info")
@@ -2499,13 +2554,20 @@ def init_session_exif():
 
 
 def init_session_jpeg():
-    """初始化当前会话的共享 JPEG 参数。"""
+    """初始化当前会话的共享 JPEG 参数，优先匹配设备指纹。"""
     global SESSION_JPEG
     if LOSSLESS_ENABLED:
         SESSION_JPEG = (100, "4:4:4")
-    elif COMPRESS_ENABLED:
+        return
+    # 设备匹配：根据设备厂商选择典型压缩参数
+    if SESSION_EXIF:
+        make = SESSION_EXIF[0]
+        qmin, qmax, pref_sub = _get_device_jpeg(make)
+    else:
+        qmin, qmax, pref_sub = 90, 96, "4:2:0"
+    if COMPRESS_ENABLED:
         SESSION_JPEG = (random.randint(*COMPRESS_QUALITY_RANGE), random.choice(SUBSAMPLING_OPTIONS))
     elif DEEP_ANTI_DUPLICATE_ENABLED:
         SESSION_JPEG = (random.randint(*DEEP_JPEG_QUALITY_RANGE), random.choice(SUBSAMPLING_OPTIONS))
     else:
-        SESSION_JPEG = (random.randint(*JPEG_QUALITY_RANGE), random.choice(SUBSAMPLING_OPTIONS))
+        SESSION_JPEG = (random.randint(qmin, qmax), pref_sub)

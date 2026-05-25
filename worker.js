@@ -5,14 +5,12 @@ const DL = `https://github.com/${REPO}/releases/download`;
 const AI_MODEL = "google/gemini-2.5-flash-image";
 
 // 最新版本信息（发布时更新此处）
-const LATEST_VERSION = "3.6.12";
-const LATEST_CHANGELOG = `新增自定义裁剪与隐形水印功能
+const LATEST_VERSION = "3.6.13";
+const LATEST_CHANGELOG = `修复GPS坐标异常 · 补充EXIF标准字段 · 新增清除元数据模式 · 设备匹配JPEG压缩
 
-自定义裁剪 — 四边百分比滑块灵活裁切、一键目标比例、快捷键预设、实时示意图预览
+清除元数据 — 彻底剥离拍摄信息，模拟截图效果
 
-隐形水印 — 自定义文字/透明度/位置、九宫格精准定位、开启状态一目了然
-
-稳定性优化 — 异常容错全面加固，权限不足/磁盘满等场景不再崩溃`;
+设备匹配 — Apple/Samsung/Canon等16家厂商JPEG压缩指纹`;
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
 const RATE_LIMIT_WINDOW = 60; // 秒

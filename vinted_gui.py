@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -1204,7 +1204,7 @@ class CompletionDialog(QDialog):
         clo.setSpacing(8)
 
         exif_rows = []
-        se = getattr(be, 'SESSION_EXIF', None)
+        se = getattr(be, 'SESSION_EXIF', None) if not be.STRIP_METADATA_ENABLED else None
         if se:
             make, model, software, dev_model, exposure, fnum, iso, lens = se
             exif_rows.append(("设备", f"{make} {model}"))
@@ -1245,14 +1245,18 @@ class CompletionDialog(QDialog):
             proc_rows.append(("智能画质", "Adaptive quality field 95-98  ·  Chroma subsampling dynamic randomization"))
         if be.LOSSLESS_ENABLED:
             proc_rows.append(("原画输出", "100% fidelity  ·  4:4:4 full chroma lossless encoding"))
+        if be.STRIP_METADATA_ENABLED:
+            proc_rows.append(("清除元数据", "All EXIF/GPS metadata stripped  ·  Zero metadata output"))
         if proc_rows:
             clo.addWidget(self._make_card("🛡 防检测处理", proc_rows, "#60a5fa"))
 
+        meta_label = "元数据清除" if be.STRIP_METADATA_ENABLED else "元数据重生"
+        meta_desc = "All metadata stripped · ICC profile removed" if be.STRIP_METADATA_ENABLED else "ICC profile stripping  ·  Complete EXIF structure rebuild"
         clo.addWidget(self._make_card("🎨 基础变换（始终执行）", [
             ("几何重构", "Stochastic affine rotation ±0.8°~1.5°  ·  Adaptive edge cropping 1.5%~4%"),
             ("光学渲染", "Gaussian convolution kernel 0.2~0.4px  ·  Unsharp mask enhancement"),
             ("像素级扰动", "Per-channel RGB perturbation ±1"),
-            ("元数据重生", "ICC profile stripping  ·  Complete EXIF structure rebuild"),
+            (meta_label, meta_desc),
         ], "#10b981"))
 
         if self._out_dir:
@@ -1314,12 +1318,12 @@ class VintedScraperGUI(QMainWindow):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         if RELEASE_MODE:
-            self.setMinimumSize(520, 650)
-            self.setMaximumHeight(650)
-            self.resize(580, 650)
+            self.setMinimumSize(520, 680)
+            self.setMaximumHeight(680)
+            self.resize(580, 680)
         else:
-            self.setMinimumSize(520, 730)
-            self.resize(600, 760)
+            self.setMinimumSize(520, 770)
+            self.resize(600, 800)
 
         screen = QApplication.primaryScreen().geometry()
         self.move((screen.width() - 500) // 2, (screen.height() - self.height()) // 2)
@@ -1364,6 +1368,7 @@ class VintedScraperGUI(QMainWindow):
         self._deep_anti_duplicate = cfg.get("deep_anti_duplicate", "False") == "True"
         self._help_shown = cfg.get("help_shown", "False") == "True"
         self._deep_variants = int(cfg.get("deep_variants", "2"))
+        self._strip_metadata = cfg.get("strip_metadata", "False") == "True"
 
         backend.CUSTOM_SAVE_ROOT = self._save_path
         backend.COMPRESS_ENABLED = self._compress
@@ -1382,6 +1387,7 @@ class VintedScraperGUI(QMainWindow):
         backend.CROP_RIGHT_PCT = self._crop_right
         backend.DEEP_ANTI_DUPLICATE_ENABLED = self._deep_anti_duplicate
         backend.DEEP_MODE_VARIANTS = self._deep_variants
+        backend.STRIP_METADATA_ENABLED = self._strip_metadata
         backend.ENABLE_FILE_LOG = not RELEASE_MODE
 
         # 累计统计
@@ -1433,6 +1439,7 @@ class VintedScraperGUI(QMainWindow):
             "deep_anti_duplicate": str(self._deep_anti_duplicate),
             "help_shown": str(self._help_shown),
             "deep_variants": str(self._deep_variants),
+            "strip_metadata": str(self._strip_metadata),
             "total_images": str(self._total_images),
             "total_tasks": str(self._total_tasks),
         })
@@ -1637,7 +1644,14 @@ class VintedScraperGUI(QMainWindow):
         r3b.addStretch()
         lo.addLayout(r3b)
 
-        # 行 3c：裁剪+水印状态（合并一行，仅设置后显示）
+        # 行 3c：清除元数据
+        r3c2 = QHBoxLayout()
+        r3c2.setSpacing(10)
+        self.chk_strip_metadata = _add_chk(r3c2, "清除元数据", "彻底剥离所有拍摄信息，模拟截图效果")
+        r3c2.addStretch()
+        lo.addLayout(r3c2)
+
+        # 行 3d：裁剪+水印状态（合并一行，仅设置后显示）
         self._status_widget = QWidget()
         self._status_widget.setStyleSheet("background:transparent;")
         r3c = QHBoxLayout(self._status_widget)
@@ -1823,6 +1837,7 @@ class VintedScraperGUI(QMainWindow):
         self._update_crop_summary()
         self.chk_deep_anti_duplicate.setChecked(self._deep_anti_duplicate)
         self.combo_variants.setCurrentText(str(self._deep_variants))
+        self.chk_strip_metadata.setChecked(self._strip_metadata)
         self._update_dots()
         self._geo_setting_up = False
         self._update_stats_display()
@@ -1852,6 +1867,7 @@ class VintedScraperGUI(QMainWindow):
         self.combo_device.currentTextChanged.connect(self._on_device_changed)
         self.btn_custom_crop.clicked.connect(self._open_crop_dialog)
         self.chk_deep_anti_duplicate.toggled.connect(self._on_deep_anti_duplicate_toggled)
+        self.chk_strip_metadata.toggled.connect(self._on_strip_metadata_toggled)
         self.combo_variants.currentTextChanged.connect(self._on_variants_changed)
         self.btn_reset.clicked.connect(self._reset_defaults)
         self.btn_start.clicked.connect(self._start_crawl)
@@ -2190,6 +2206,12 @@ class VintedScraperGUI(QMainWindow):
         backend.DEEP_MODE_VARIANTS = int(text)
         self._save_config()
 
+    def _on_strip_metadata_toggled(self, v):
+        self._strip_metadata = v
+        backend.STRIP_METADATA_ENABLED = v
+        self._update_dots()
+        self._save_config()
+
     def _reset_defaults(self):
         if QMessageBox.Yes == QMessageBox.question(self, "确认", "恢复所有默认设置并重启？"):
             if os.path.exists(backend.CONFIG_FILE):
@@ -2387,7 +2409,8 @@ class VintedScraperGUI(QMainWindow):
             return
         import shutil as _shutil
         variants = backend.DEEP_MODE_VARIANTS if backend.DEEP_ANTI_DUPLICATE_ENABLED else 1
-        backend.init_session_gps()
+        if not backend.STRIP_METADATA_ENABLED:
+            backend.init_session_gps()
         backend.init_session_exif()
         backend.init_session_jpeg()
         # 输出到保存路径，不存在则用第一张图目录兜底
