@@ -1177,17 +1177,7 @@ def process_image(image_path, skip_gps=False):
             TOTAL_IMAGES += 1
         return True
     except Exception as e:
-        import traceback
-        err_detail = traceback.format_exc()
         write_log(f"❌ 图片处理失败 | 路径：{image_path} | 错误：{e}", "error")
-        # 写入桌面诊断文件（发布版无日志面板，用于排查问题）
-        try:
-            diag_path = os.path.join(os.path.expanduser("~"), os.path.dirname(sys.executable), "ImageMAX_error.txt")
-            with open(diag_path, "a", encoding="utf-8") as _df:
-                import time as _t
-                _df.write(f"[{_t.strftime('%Y-%m-%d %H:%M:%S')}] {image_path}\n{e}\n{err_detail}\n---\n")
-        except Exception:
-            pass
         if img:
             try:
                 img.close()
@@ -2320,25 +2310,12 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
     import time as _time
     _start = _time.time()
 
-    # 诊断日志
-    _diag = os.path.join(os.path.expanduser("~"), os.path.dirname(sys.executable), "ImageMAX_diag.txt")
-    def _dlog(msg):
-        try:
-            with open(_diag, "a", encoding="utf-8") as _df:
-                _df.write(f"[{_time.strftime('%H:%M:%S')}] {msg}\n")
-        except Exception:
-            pass
-    _dlog("start_crawl_task 开始")
-    _dlog(f"STRIP_METADATA={STRIP_METADATA_ENABLED}")
-
     # 内部完整性校验
     if not _verify_license_quick():
-        _dlog("许可证校验失败，退出")
         write_log("任务初始化校验失败", "error")
         if _on_finished:
             _on_finished(stopped=False)
         return
-    _dlog("许可证校验通过")
 
     STOP_TASK = False
     CURRENT_TASK = 0
@@ -2363,19 +2340,16 @@ def start_crawl_task(urls_text, debug_mode, wait_time=0):
             with open(LOG_FILE, "w", encoding="utf-8") as f:
                 f.write("")
     except Exception as e:
-        _dlog(f"目录初始化失败: {e}")
         write_log(f"❌ 目录初始化失败：{e}", "error")
         if _on_finished:
             _on_finished(False)
         return
 
-    _dlog(f"目录初始化成功: {save_root}")
     write_log("=" * 50)
     if not STRIP_METADATA_ENABLED:
         init_session_gps()
     init_session_exif()
     init_session_jpeg()
-    _dlog(f"会话初始化完成 SESSION_EXIF={'OK' if SESSION_EXIF else 'NONE'} SESSION_JPEG={SESSION_JPEG}")
     write_log("图像重构引擎启动", "info")
     write_log(f"📂 保存路径：{save_root}", "info")
     if SELECTED_CITY == "全国随机":

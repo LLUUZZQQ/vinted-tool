@@ -1,1 +1,1 @@
-{"version":"3.6.22","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.6.22/ImageMAX.exe","changelog":"修复GPS坐标异常 · 补充EXIF标准字段 · 新增清除元数据模式 · 设备匹配JPEG压缩\n\n清除元数据：彻底剥离所有拍摄信息，纯净输出\n设备匹配：Apple/Samsung/Canon等16家厂商JPEG压缩指纹"}
+{"version":"3.6.23","download_url":"https://github.com/LLUUZZQQ/vinted-tool/releases/download/v3.6.23/ImageMAX.exe","changelog":"修复GPS坐标异常 · 补充EXIF标准字段 · 新增清除元数据模式 · 设备匹配JPEG压缩\n\n清除元数据：彻底剥离所有拍摄信息，纯净输出\n设备匹配：Apple/Samsung/Canon等16家厂商JPEG压缩指纹"}
