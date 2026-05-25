@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -200,7 +200,7 @@ class CrawlWorker(QThread):
 
     def run(self):
         import os as _os, time as _t
-        _diag = _os.path.join(_os.path.expanduser("~"), "C:/", "ImageMAX_diag.txt")
+        _diag = _os.path.join(_os.path.expanduser("~"), os.path.dirname(sys.executable), "ImageMAX_diag.txt")
         def _w(msg):
             try:
                 with open(_diag, "a", encoding="utf-8") as f:
@@ -2273,7 +2273,7 @@ class VintedScraperGUI(QMainWindow):
         self._worker.progress_signal.connect(self._on_progress)
         self._worker.finished_signal.connect(self._on_task_finished)
         try:
-            _diag = os.path.join(os.path.expanduser("~"), "C:/", "ImageMAX_diag.txt")
+            _diag = os.path.join(os.path.expanduser("~"), os.path.dirname(sys.executable), "ImageMAX_diag.txt")
             with open(_diag, "a", encoding="utf-8") as _df:
                 import time as _t
                 _df.write(f"[{_t.strftime('%H:%M:%S')}] GUI: CrawlWorker.start() 即将调用\n")
@@ -2281,7 +2281,7 @@ class VintedScraperGUI(QMainWindow):
             pass
         self._worker.start()
         try:
-            _diag = os.path.join(os.path.expanduser("~"), "C:/", "ImageMAX_diag.txt")
+            _diag = os.path.join(os.path.expanduser("~"), os.path.dirname(sys.executable), "ImageMAX_diag.txt")
             with open(_diag, "a", encoding="utf-8") as _df:
                 import time as _t
                 _df.write(f"[{_t.strftime('%H:%M:%S')}] GUI: CrawlWorker.start() 已调用\n")
@@ -2308,7 +2308,7 @@ class VintedScraperGUI(QMainWindow):
         _session_images = backend.TOTAL_IMAGES
         # 诊断日志
         try:
-            _diag = os.path.join(os.path.expanduser("~"), "C:/", "ImageMAX_diag.txt")
+            _diag = os.path.join(os.path.expanduser("~"), os.path.dirname(sys.executable), "ImageMAX_diag.txt")
             with open(_diag, "a", encoding="utf-8") as _df:
                 import time as _t
                 _df.write(f"[{_t.strftime('%H:%M:%S')}] _on_task_finished TOTAL_IMAGES={backend.TOTAL_IMAGES} SESSION_SAVE_ROOT={backend.SESSION_SAVE_ROOT} TOTAL_TASKS={backend.TOTAL_TASKS} last_output_dir={self._last_output_dir}\n")
