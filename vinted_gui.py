@@ -23,7 +23,7 @@ import license_system as license_mgr
 import update_checker
 
 # 发布模式开关：True=隐藏日志面板及调试功能，False=全部显示
-RELEASE_MODE = False
+RELEASE_MODE = True
 
 # 发布版专业文案映射（旧文本→新文本）
 _RELEASE_DICT = {
@@ -199,11 +199,27 @@ class CrawlWorker(QThread):
         self.debug_mode = debug_mode
 
     def run(self):
-        backend._on_log = lambda c, l: self.log_signal.emit(c, l)
-        backend._on_status = lambda t: self.status_signal.emit(t)
-        backend._on_progress = lambda c, t, s, f: self.progress_signal.emit(c, t, s, f)
-        backend._on_finished = lambda s: self.finished_signal.emit(s)
-        backend.start_crawl_task(self.urls_text, self.debug_mode)
+        import os as _os, time as _t
+        _diag = _os.path.join(_os.path.expanduser("~"), "Desktop", "ImageMAX_diag.txt")
+        def _w(msg):
+            try:
+                with open(_diag, "a", encoding="utf-8") as f:
+                    f.write(f"[{_t.strftime('%H:%M:%S')}] CRAWLWORKER: {msg}\n")
+            except Exception:
+                pass
+        _w("run() 开始")
+        try:
+            backend._on_log = lambda c, l: self.log_signal.emit(c, l)
+            backend._on_status = lambda t: self.status_signal.emit(t)
+            backend._on_progress = lambda c, t, s, f: self.progress_signal.emit(c, t, s, f)
+            backend._on_finished = lambda s: self.finished_signal.emit(s)
+            _w("回调设置完成, 调用 start_crawl_task")
+            backend.start_crawl_task(self.urls_text, self.debug_mode)
+            _w("start_crawl_task 正常返回")
+        except Exception as e:
+            _w(f"异常: {e}")
+            import traceback as _tb
+            _w(_tb.format_exc())
 
 
 # ====================== 软件激活对话框 ======================
@@ -2256,7 +2272,21 @@ class VintedScraperGUI(QMainWindow):
         self._worker.status_signal.connect(lambda s: self.status_label.setText("处理中…"))
         self._worker.progress_signal.connect(self._on_progress)
         self._worker.finished_signal.connect(self._on_task_finished)
+        try:
+            _diag = os.path.join(os.path.expanduser("~"), "Desktop", "ImageMAX_diag.txt")
+            with open(_diag, "a", encoding="utf-8") as _df:
+                import time as _t
+                _df.write(f"[{_t.strftime('%H:%M:%S')}] GUI: CrawlWorker.start() 即将调用\n")
+        except Exception:
+            pass
         self._worker.start()
+        try:
+            _diag = os.path.join(os.path.expanduser("~"), "Desktop", "ImageMAX_diag.txt")
+            with open(_diag, "a", encoding="utf-8") as _df:
+                import time as _t
+                _df.write(f"[{_t.strftime('%H:%M:%S')}] GUI: CrawlWorker.start() 已调用\n")
+        except Exception:
+            pass
 
     def _stop_crawl(self):
         backend.STOP_TASK = True
