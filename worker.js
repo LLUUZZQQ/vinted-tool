@@ -6,7 +6,7 @@ const AI_MODEL = "google/gemini-2.5-flash-image";
 
 // 最新版本信息（发布时更新此处）
 const LATEST_VERSION = "3.6.26";
-const LATEST_CHANGELOG = `优化授权验证机制 · 稳定性增强`;
+const LATEST_CHANGELOG = `稳定性增强 · 体验优化`;
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
 const RATE_LIMIT_WINDOW = 60; // 秒
