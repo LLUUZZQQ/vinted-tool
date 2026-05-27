@@ -6,11 +6,7 @@ const AI_MODEL = "google/gemini-2.5-flash-image";
 
 // 最新版本信息（发布时更新此处）
 const LATEST_VERSION = "3.6.25";
-const LATEST_CHANGELOG = `修复GPS坐标异常 · 补充EXIF标准字段 · 新增清除元数据模式 · 设备匹配JPEG压缩
-
-清除元数据 — 彻底剥离所有拍摄信息，纯净输出
-
-设备匹配 — Apple/Samsung/Canon等16家厂商JPEG压缩指纹`;
+const LATEST_CHANGELOG = `优化授权验证机制 · 稳定性增强`;
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
 const RATE_LIMIT_WINDOW = 60; // 秒
