@@ -173,6 +173,28 @@ def _verify_signature(hwid, signature_b64):
         return False
 
 
+REVOKE_URL = "https://vt-proxy.vtmax.workers.dev/revoke"
+
+
+def _check_remote_revoked(hwid):
+    """查询远程黑名单，返回 (is_revoked: bool, error: str)"""
+    import urllib.request
+    import urllib.error
+    try:
+        req = urllib.request.Request(
+            f"{REVOKE_URL}?hwid={hwid}",
+            headers={"User-Agent": "ImageMAX/1.0"}
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return data.get("revoked", False), ""
+    except urllib.error.URLError as e:
+        return False, f"网络错误：{e.reason}"
+    except Exception as e:
+        return False, f"查询失败：{e}"
+    return False, ""
+
+
 def check_license():
     """
     验证当前 license 是否有效。
@@ -207,6 +229,11 @@ def check_license():
             remaining = None
     else:
         remaining = None  # 永久有效
+
+    # 远程黑名单检查（仅在授权有效时查询）
+    revoked, revoke_err = _check_remote_revoked(current_hwid)
+    if revoked:
+        return False, "授权已被管理员停用，请联系管理员", None
 
     return True, "授权有效", remaining
 

@@ -5,7 +5,7 @@ const DL = `https://github.com/${REPO}/releases/download`;
 const AI_MODEL = "google/gemini-2.5-flash-image";
 
 // 最新版本信息（发布时更新此处）
-const LATEST_VERSION = "3.6.24";
+const LATEST_VERSION = "3.6.25";
 const LATEST_CHANGELOG = `修复GPS坐标异常 · 补充EXIF标准字段 · 新增清除元数据模式 · 设备匹配JPEG压缩
 
 清除元数据 — 彻底剥离所有拍摄信息，纯净输出
@@ -96,6 +96,37 @@ export default {
       const key = `credits_${hwid}`;
       const credits = parseInt(await env.VTMAX_CREDITS.get(key) || "0");
       return Response.json({ hwid, credits });
+    }
+
+    // /revoke — 远程停用授权
+    if (p === "/revoke") {
+      const hwid = url.searchParams.get("hwid");
+      if (!hwid) return new Response("Missing hwid", { status: 400 });
+
+      // POST: 添加黑名单（Bearer 鉴权）
+      if (request.method === "POST") {
+        const auth = request.headers.get("Authorization") || "";
+        const secret = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+        if (!env.ADMIN_SECRET || secret !== env.ADMIN_SECRET) return new Response("Unauthorized", { status: 403 });
+        const key = `revoked_${hwid}`;
+        await env.VTMAX_CREDITS.put(key, "1");
+        return Response.json({ hwid, revoked: true });
+      }
+
+      // DELETE: 移除黑名单（Bearer 鉴权）
+      if (request.method === "DELETE") {
+        const auth = request.headers.get("Authorization") || "";
+        const secret = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+        if (!env.ADMIN_SECRET || secret !== env.ADMIN_SECRET) return new Response("Unauthorized", { status: 403 });
+        const key = `revoked_${hwid}`;
+        await env.VTMAX_CREDITS.delete(key);
+        return Response.json({ hwid, revoked: false });
+      }
+
+      // GET: 查询状态
+      const key = `revoked_${hwid}`;
+      const revoked = (await env.VTMAX_CREDITS.get(key)) === "1";
+      return Response.json({ hwid, revoked });
     }
 
     // /ai-bg-replace — AI 背景替换
