@@ -174,10 +174,12 @@ def _verify_signature(hwid, signature_b64):
 
 
 REVOKE_URL = "https://vt-proxy.vtmax.workers.dev/revoke"
+_REVOKE_CACHE = {"last_check": 0, "revoked": False, "success": False}
 
 
 def _check_remote_revoked(hwid):
-    """查询远程黑名单，返回 (is_revoked: bool, error: str)"""
+    """查询远程黑名单。网络超时时使用上次成功查询的缓存（最多24小时）"""
+    global _REVOKE_CACHE
     import urllib.request
     import urllib.error
     try:
@@ -185,13 +187,19 @@ def _check_remote_revoked(hwid):
             f"{REVOKE_URL}?hwid={hwid}",
             headers={"User-Agent": "ImageMAX/1.0"}
         )
-        with urllib.request.urlopen(req, timeout=8) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            return data.get("revoked", False), ""
-    except urllib.error.URLError as e:
-        return False, f"网络错误：{e.reason}"
-    except Exception as e:
-        return False, f"查询失败：{e}"
+            revoked = data.get("revoked", False)
+            _REVOKE_CACHE = {"last_check": _time.time(), "revoked": revoked, "success": True}
+            return revoked, ""
+    except Exception:
+        pass
+
+    # 网络失败：使用缓存
+    if _REVOKE_CACHE["success"]:
+        age = _time.time() - _REVOKE_CACHE["last_check"]
+        if age < 86400:  # 24小时内
+            return _REVOKE_CACHE["revoked"], "(缓存)"
     return False, ""
 
 
